@@ -133,7 +133,7 @@ class AlbumMatcher:
     @staticmethod
     def get_confidence_level(score: float) -> str:
         """Convert numerical confidence score to categorical level."""
-        if score >= 0.8:
+        if score >= 0.75:
             return "high"
         elif score >= 0.5:
             return "medium"
