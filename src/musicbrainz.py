@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from . import config
 from .disambiguation import AlbumMatcher
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class MusicBrainzClient:
@@ -43,7 +43,7 @@ class MusicBrainzClient:
                 return func(*args, **kwargs)
 
             except musicbrainzngs.NetworkError as e:
-                logger.warning(f"Network error on attempt {attempt + 1}: {e}")
+                log.warning(f"Network error on attempt {attempt + 1}: {e}")
                 if attempt == config.MAX_RETRIES - 1:
                     raise
 
@@ -53,7 +53,7 @@ class MusicBrainzClient:
                     and hasattr(e.cause, "code")
                     and e.cause.code == 429
                 ):
-                    logger.warning(f"Rate limit exceeded on attempt {attempt + 1}")
+                    log.warning(f"Rate limit exceeded on attempt {attempt + 1}")
                     if attempt == config.MAX_RETRIES - 1:
                         raise
                 else:
@@ -61,7 +61,7 @@ class MusicBrainzClient:
                     raise
 
             except Exception as e:
-                logger.error(f"Unexpected error on attempt {attempt + 1}: {e}")
+                log.error(f"Unexpected error on attempt {attempt + 1}: {e}")
                 if attempt == config.MAX_RETRIES - 1:
                     raise
 
@@ -79,14 +79,14 @@ class MusicBrainzClient:
 
             if result["artist-count"] > 0:
                 artist_id = result["artist-list"][0]["id"]
-                logger.debug(f"Found MusicBrainz ID for {artist_name}: {artist_id}")
+                log.debug(f"Found MusicBrainz ID for {artist_name}: {artist_id}")
                 return artist_id
             else:
-                logger.debug(f"No MusicBrainz ID found for {artist_name}")
+                log.debug(f"No MusicBrainz ID found for {artist_name}")
                 return None
 
         except Exception as e:
-            logger.error(f"Error searching for artist {artist_name}: {e}")
+            log.error(f"Error searching for artist {artist_name}: {e}")
             return None
 
     def get_release_groups(
@@ -99,7 +99,7 @@ class MusicBrainzClient:
 
         try:
             while True:
-                logger.debug(
+                log.debug(
                     f"Fetching release groups for {artist_id}, offset {offset}"
                 )
 
@@ -157,7 +157,7 @@ class MusicBrainzClient:
                         )
 
                     except Exception as e:
-                        logger.warning(
+                        log.warning(
                             f"Error parsing date for release {rg.get('title', 'Unknown')}: {e}"
                         )
                         continue
@@ -168,13 +168,13 @@ class MusicBrainzClient:
 
                 offset += page_size
 
-            logger.info(
+            log.info(
                 f"Retrieved {len(all_release_groups)} release groups for artist {artist_id}"
             )
             return all_release_groups
 
         except Exception as e:
-            logger.error(f"Error fetching release groups for artist {artist_id}: {e}")
+            log.error(f"Error fetching release groups for artist {artist_id}: {e}")
             return []
 
     def get_recent_releases(self, artist_id: str, days_back: int = 30) -> List[Dict]:
@@ -192,7 +192,7 @@ class MusicBrainzClient:
             Tuple of (confidence_score, confidence_level)
         """
         if not known_albums:
-            logger.warning(
+            log.warning(
                 f"No known albums provided for confidence validation of {artist_id}"
             )
             return 0.0, "none"
@@ -202,7 +202,7 @@ class MusicBrainzClient:
             all_releases = self.get_release_groups(artist_id, since_date=None)
 
             if not all_releases:
-                logger.warning(f"No releases found for artist {artist_id}")
+                log.warning(f"No releases found for artist {artist_id}")
                 return 0.0, "none"
 
             # Use album matcher to calculate confidence
@@ -214,7 +214,7 @@ class MusicBrainzClient:
 
             confidence_level = AlbumMatcher.get_confidence_level(confidence_score)
 
-            logger.info(
+            log.info(
                 f"Confidence validation for {artist_id}: {confidence_score:.2f} ({confidence_level}) "
                 f"- {len(matches)} album matches found"
             )
@@ -222,7 +222,7 @@ class MusicBrainzClient:
             return confidence_score, confidence_level
 
         except Exception as e:
-            logger.error(f"Error validating confidence for artist {artist_id}: {e}")
+            log.error(f"Error validating confidence for artist {artist_id}: {e}")
             return 0.0, "none"
 
     def search_artist_with_disambiguation(
@@ -261,21 +261,21 @@ class MusicBrainzClient:
                         best_confidence_level = confidence_level
 
                 except Exception as e:
-                    logger.warning(f"Error evaluating candidate: {e}")
+                    log.warning(f"Error evaluating candidate: {e}")
                     continue
 
             if (
                 best_candidate
                 and best_confidence >= config.DISAMBIGUATION_MIN_CONFIDENCE_THRESHOLD
             ):
-                logger.info(
+                log.info(
                     f"Selected {best_candidate} for {artist_name} with confidence {best_confidence:.2f}"
                 )
                 return best_candidate, best_confidence_level
             else:
-                logger.warning(f"Low confidence for {artist_name}, using fallback")
+                log.warning(f"Low confidence for {artist_name}, using fallback")
                 return candidates[0]["id"], "low"
 
         except Exception as e:
-            logger.error(f"Error in disambiguation for {artist_name}: {e}")
+            log.error(f"Error in disambiguation for {artist_name}: {e}")
             return None, "none"

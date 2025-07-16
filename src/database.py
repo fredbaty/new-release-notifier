@@ -7,7 +7,7 @@ from typing import List, Dict, Optional
 import logging
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class Database:
@@ -89,12 +89,12 @@ class Database:
     def migrate_from_csv(self, csv_path: str):
         """Migrate data from the legacy CSV file."""
         if not Path(csv_path).exists():
-            logger.warning(f"CSV file not found: {csv_path}")
+            log.warning(f"CSV file not found: {csv_path}")
             return
 
         try:
             df = pd.read_csv(csv_path, encoding="utf-8")
-            logger.info(f"Migrating {len(df)} artists from CSV")
+            log.info(f"Migrating {len(df)} artists from CSV")
 
             with self.get_connection() as conn:
                 for _, row in df.iterrows():
@@ -113,10 +113,10 @@ class Database:
                         (artist_name, musicbrainz_id, ignore_releases),
                     )
 
-            logger.info("CSV migration completed successfully")
+            log.info("CSV migration completed successfully")
 
         except Exception as e:
-            logger.error(f"Error migrating from CSV: {e}")
+            log.error(f"Error migrating from CSV: {e}")
             raise
 
     def add_artist(

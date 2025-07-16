@@ -6,7 +6,7 @@ import logging
 
 from .database import Database
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class ArtistScheduler:

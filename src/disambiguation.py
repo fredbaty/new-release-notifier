@@ -5,7 +5,7 @@ from typing import List, Tuple, Dict
 import logging
 from difflib import SequenceMatcher
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class AlbumMatcher:
@@ -109,7 +109,7 @@ class AlbumMatcher:
                 total_similarity += best_similarity
                 matched_local_albums += 1
 
-                logger.debug(
+                log.debug(
                     f"Album match: '{local_album}' -> '{best_mb_title}' "
                     f"(similarity: {best_similarity:.2f})"
                 )
@@ -123,7 +123,7 @@ class AlbumMatcher:
             match_ratio = matched_local_albums / len(local_albums)
             overall_confidence = avg_similarity * match_ratio
 
-        logger.debug(
+        log.debug(
             f"Album matching results: {matched_local_albums}/{len(local_albums)} albums matched, "
             f"overall confidence: {overall_confidence:.2f}"
         )

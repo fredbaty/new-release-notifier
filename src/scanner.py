@@ -4,7 +4,7 @@ import os
 from typing import List, Set
 import logging
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class MusicScanner:
@@ -14,7 +14,7 @@ class MusicScanner:
     def scan_artist_folders(self) -> List[str]:
         """Scan the music directory and return a list of artist folder names."""
         if not os.path.exists(self.music_library_path):
-            logger.warning(
+            log.warning(
                 f"Music library path does not exist: {self.music_library_path}"
             )
             return []
@@ -27,11 +27,11 @@ class MusicScanner:
                 and not folder.startswith(".")  # Skip hidden folders
             ]
 
-            logger.info(f"Found {len(artist_folders)} artist folders in music library")
+            log.info(f"Found {len(artist_folders)} artist folders in music library")
             return artist_folders
 
         except Exception as e:
-            logger.error(f"Error scanning music library: {e}")
+            log.error(f"Error scanning music library: {e}")
             return []
 
     def find_new_artists(self, existing_artists: Set[str]) -> List[str]:
@@ -42,9 +42,9 @@ class MusicScanner:
         ]
 
         if new_artists:
-            logger.info(f"Found {len(new_artists)} new artists: {new_artists[:5]}...")
+            log.info(f"Found {len(new_artists)} new artists: {new_artists[:5]}...")
         else:
-            logger.info("No new artists found")
+            log.info("No new artists found")
 
         return new_artists
 
@@ -53,11 +53,11 @@ class MusicScanner:
         artist_path = os.path.join(self.music_library_path, artist_name)
 
         if not os.path.exists(artist_path):
-            logger.warning(f"Artist directory does not exist: {artist_path}")
+            log.warning(f"Artist directory does not exist: {artist_path}")
             return []
 
         if not os.path.isdir(artist_path):
-            logger.warning(f"Artist path is not a directory: {artist_path}")
+            log.warning(f"Artist path is not a directory: {artist_path}")
             return []
 
         try:
@@ -68,11 +68,11 @@ class MusicScanner:
                 and not folder.startswith(".")  # Skip hidden folders
             ]
 
-            logger.debug(
+            log.debug(
                 f"Found {len(album_folders)} albums for {artist_name}: {album_folders}"
             )
             return album_folders
 
         except Exception as e:
-            logger.error(f"Error scanning albums for artist {artist_name}: {e}")
+            log.error(f"Error scanning albums for artist {artist_name}: {e}")
             return []

@@ -6,7 +6,7 @@ import logging
 
 from . import config
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 class NotificationClient:
@@ -43,14 +43,14 @@ class NotificationClient:
             )
 
             if response.status_code == 200:
-                logger.info(f"Notification sent successfully: {message}")
+                log.info(f"Notification sent successfully: {message}")
             else:
-                logger.error(
+                log.error(
                     f"Failed to send notification. Status: {response.status_code}"
                 )
 
         except requests.RequestException as e:
-            logger.error(f"Error sending notification: {e}")
+            log.error(f"Error sending notification: {e}")
 
     def send_summary_notification(self, releases: List[Dict]):
         """Send a summary notification for multiple releases."""
@@ -92,19 +92,19 @@ class HealthCheck:
                 response = requests.get(f"{self.url}/fail", timeout=self.timeout)
 
             if response.status_code == 200:
-                logger.debug("Health check ping sent successfully")
+                log.debug("Health check ping sent successfully")
             else:
-                logger.warning(
+                log.warning(
                     f"Health check ping failed with status: {response.status_code}"
                 )
 
         except requests.RequestException as e:
-            logger.error(f"Error sending health check ping: {e}")
+            log.error(f"Error sending health check ping: {e}")
 
     def ping_start(self):
         """Send a start ping."""
         try:
             response = requests.get(f"{self.url}/start", timeout=self.timeout)
-            logger.debug("Health check start ping sent")
+            log.debug("Health check start ping sent")
         except requests.RequestException as e:
-            logger.error(f"Error sending health check start ping: {e}")
+            log.error(f"Error sending health check start ping: {e}")
