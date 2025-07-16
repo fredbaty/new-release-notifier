@@ -16,7 +16,7 @@ logging.basicConfig(
 )
 logging.getLogger('musicbrainzngs').setLevel(logging.WARNING)
 
-def main():
+def main(migrate_from_csv: bool = False):
     """Main entry point for the new release notifier."""
     log.info("+-+-+-+-+-START-NEW_RELEASE_NOTIFIER-+-+-+-+-+")
 
@@ -29,12 +29,13 @@ def main():
         db = Database(DATABASE_PATH)
 
         # Migrate from CSV if it exists
-        try:
-            db.migrate_from_csv(LEGACY_CSV_PATH)
-        except Exception as e:
-            log.warning(
-                f"CSV migration failed (this is normal if already migrated): {e}"
-            )
+        if migrate_from_csv:
+            try:
+                db.migrate_from_csv(LEGACY_CSV_PATH)
+            except Exception as e:
+                log.warning(
+                    f"CSV migration failed (this is normal if already migrated): {e}"
+                )
 
         # Initialize other components
         mb_client = MusicBrainzClient()
