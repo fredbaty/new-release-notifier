@@ -1,0 +1,17 @@
+# MacOS files
+.DS_Store
+
+# Python bytecode files
+__pycache__/
+*.pyc
+
+# Config files
+config.py
+
+# Virtual environment
+.venv/
+
+# Database files
+data/*
+*.db
+*.csv
