@@ -16,10 +16,10 @@ logging.basicConfig(
 logging.getLogger("musicbrainzngs").setLevel(logging.WARNING)
 
 
-def main():
+def main(config_path: str = "data/app_config.yml"):
     """Main entry point for the new release notifier."""
     log.info("+-+-+-+-+-START-NEW_RELEASE_NOTIFIER-+-+-+-+-+")
-    config = load_config("data/app_config.yml")
+    config = load_config(config_path)
 
     health_check = HealthCheck(config.health_check)
     health_check.ping_start()
@@ -138,7 +138,6 @@ def main():
 
         # Step 3: Check each artist for new releases
         api_calls = 0
-        cache_hits = 0
         all_new_releases = []
 
         for artist in artists_to_check:
