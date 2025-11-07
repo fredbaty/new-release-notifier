@@ -1,7 +1,6 @@
 """Music directory scanner for discovering new artists."""
 
 import os
-from typing import List, Set
 import logging
 
 log = logging.getLogger(__name__)
@@ -11,12 +10,10 @@ class MusicScanner:
     def __init__(self, music_library_path: str):
         self.music_library_path = music_library_path
 
-    def scan_artist_folders(self) -> List[str]:
+    def scan_artist_folders(self) -> list[str]:
         """Scan the music directory and return a list of artist folder names."""
         if not os.path.exists(self.music_library_path):
-            log.warning(
-                f"Music library path does not exist: {self.music_library_path}"
-            )
+            log.warning(f"Music library path does not exist: {self.music_library_path}")
             return []
 
         try:
@@ -34,7 +31,7 @@ class MusicScanner:
             log.error(f"Error scanning music library: {e}")
             return []
 
-    def find_new_artists(self, existing_artists: Set[str]) -> List[str]:
+    def find_new_artists(self, existing_artists: set[str]) -> list[str]:
         """Find artist folders that are not already in the database."""
         all_artists = self.scan_artist_folders()
         new_artists = [
@@ -48,7 +45,7 @@ class MusicScanner:
 
         return new_artists
 
-    def get_artist_albums(self, artist_name: str) -> List[str]:
+    def get_artist_albums(self, artist_name: str) -> list[str]:
         """Get album directory names for a specific artist."""
         artist_path = os.path.join(self.music_library_path, artist_name)
 
