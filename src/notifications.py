@@ -3,7 +3,7 @@
 import requests
 import logging
 
-from config import HealthCheckConfig, NtfyConfig
+from src.config import HealthCheckConfig, NtfyConfig
 
 log = logging.getLogger(__name__)
 

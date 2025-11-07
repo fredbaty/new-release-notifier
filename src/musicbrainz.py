@@ -6,8 +6,8 @@ import random
 import logging
 from datetime import datetime, timedelta
 
-from config import DisambiguationParams, MusicBrainzConfig
-from .disambiguation import AlbumMatcher
+from src.config import DisambiguationParams, MusicBrainzConfig
+from src.disambiguation import AlbumMatcher
 
 log = logging.getLogger(__name__)
 
@@ -149,6 +149,9 @@ class MusicBrainzClient:
                 for rg in release_groups:
                     # Only include releases with a date
                     if "first-release-date" not in rg:
+                        log.debug(
+                            f"Skipping release {rg.get('title', 'Unknown')} with no release date"
+                        )
                         continue
 
                     # Apply release type filtering if configured
@@ -164,37 +167,27 @@ class MusicBrainzClient:
 
                     # Parse and filter by date if specified
                     date_str = rg["first-release-date"]
-                    try:
-                        # Try full date format first
-                        try:
-                            release_date = datetime.strptime(date_str, "%Y-%m-%d")
-                        except ValueError:
-                            # Fall back to year-month format
-                            try:
-                                release_date = datetime.strptime(date_str, "%Y-%m")
-                            except ValueError:
-                                # Skip releases with unparseable dates
-                                continue
+                    release_date = self.parse_release_date(date_str)
 
-                        # Filter by date if since_date is provided
-                        if since_date and release_date < since_date:
-                            continue
-
-                        all_release_groups.append(
-                            {
-                                "id": rg["id"],
-                                "title": rg["title"],
-                                "type": rg.get("type", ""),
-                                "first_release_date": date_str,
-                                "parsed_date": release_date,
-                            }
-                        )
-
-                    except Exception as e:
-                        log.warning(
-                            f"Error parsing date for release {rg.get('title', 'Unknown')}: {e}"
+                    if release_date is None:
+                        log.debug(
+                            f"Could not parse date '{date_str}' for release {rg.get('title', 'Unknown')}"
                         )
                         continue
+
+                    # Filter by date if since_date is provided
+                    if since_date and release_date < since_date:
+                        continue
+
+                    all_release_groups.append(
+                        {
+                            "id": rg["id"],
+                            "title": rg["title"],
+                            "type": rg.get("type", ""),
+                            "first_release_date": date_str,
+                            "parsed_date": release_date,
+                        }
+                    )
 
                 # Check if we've reached the end
                 if len(release_groups) < page_size:
@@ -319,3 +312,20 @@ class MusicBrainzClient:
         except Exception as e:
             log.error(f"Error in disambiguation for {artist_name}: {e}")
             return None, "none"
+
+    @staticmethod
+    def parse_release_date(date_str: str) -> datetime | None:
+        """Parse a MusicBrainz release date in various formats."""
+        formats = [
+            "%Y-%m-%d",  # full date
+            "%Y-%m",  # year and month
+            "%Y",  # year only
+        ]
+
+        for fmt in formats:
+            try:
+                return datetime.strptime(date_str, fmt)
+            except ValueError:
+                continue
+
+        return None
