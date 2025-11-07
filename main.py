@@ -19,9 +19,10 @@ logging.getLogger("musicbrainzngs").setLevel(logging.WARNING)
 def main():
     """Main entry point for the new release notifier."""
     log.info("+-+-+-+-+-START-NEW_RELEASE_NOTIFIER-+-+-+-+-+")
-    health_check = HealthCheck()
-    health_check.ping_start()
     config = load_config("data/app_config.yml")
+
+    health_check = HealthCheck(config.health_check)
+    health_check.ping_start()
 
     try:
         # Initialize database

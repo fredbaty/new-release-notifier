@@ -4,7 +4,7 @@ import requests
 from typing import List, Dict, Optional
 import logging
 
-from config import NtfyConfig
+from config import HealthCheckConfig, NtfyConfig
 
 log = logging.getLogger(__name__)
 
@@ -78,9 +78,9 @@ class NotificationClient:
 
 
 class HealthCheck:
-    def __init__(self):
-        self.url = config.HEALTHCHECK_URL
-        self.timeout = config.HEALTHCHECK_TIMEOUT
+    def __init__(self, config: HealthCheckConfig = HealthCheckConfig()):
+        self.url = config.url
+        self.timeout = config.timeout
 
     def ping(self, success: bool = True):
         """Send a health check ping."""
