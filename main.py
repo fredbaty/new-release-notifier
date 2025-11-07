@@ -85,7 +85,9 @@ def main(
             artist_name = artist["name"]
             current_mb_id = artist["musicbrainz_id"]
 
-            log.info(f"Validating confidence for: {artist_name}")
+            log.info(
+                f"Validating confidence for: {artist_name} [current ID: {current_mb_id}]"
+            )
             known_albums = scanner.get_artist_albums(artist_name)
             log.info("known_albums retrieved")
             if known_albums and current_mb_id:
@@ -93,7 +95,7 @@ def main(
                 try:
                     confidence_score, confidence_level = (
                         mb_client.validate_artist_confidence(
-                            current_mb_id, known_albums
+                            current_mb_id, artist_name, known_albums
                         )
                     )
                     log.info(f"confidence_score: {confidence_score}")

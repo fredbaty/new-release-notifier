@@ -210,7 +210,7 @@ class MusicBrainzClient:
         return self.get_release_groups(artist_id, since_date=cutoff_date)
 
     def validate_artist_confidence(
-        self, artist_id: str, known_albums: list[str]
+        self, artist_id: str, artist_name: str, known_albums: list[str]
     ) -> tuple[float, str]:
         """
         Validate confidence of an existing MusicBrainz ID using known albums.
@@ -220,13 +220,13 @@ class MusicBrainzClient:
         """
         if not known_albums:
             log.warning(
-                f"No known albums provided for confidence validation of {artist_id}"
+                f"No known albums provided for confidence validation of {artist_name}: {artist_id}"
             )
             return 0.0, "none"
 
         try:
             # Get all release groups for this artist (no date filter for confidence check)
-            log.info(f"Getting all release groups for artist id {artist_id}")
+            log.info(f"Getting all release groups for {artist_name} [{artist_id}]")
             all_releases = self.get_release_groups(artist_id, since_date=None)
 
             if not all_releases:
@@ -246,14 +246,16 @@ class MusicBrainzClient:
             confidence_level = AlbumMatcher.get_confidence_level(confidence_score)
 
             log.info(
-                f"Confidence validation for {artist_id}: {confidence_score:.2f} ({confidence_level}) "
+                f"Confidence validation for {artist_name} [{artist_id}]: {confidence_score:.2f} ({confidence_level}) "
                 f"- {len(matches)} album matches found"
             )
 
             return confidence_score, confidence_level
 
         except Exception as e:
-            log.error(f"Error validating confidence for artist {artist_id}: {e}")
+            log.error(
+                f"Error validating confidence for {artist_name} [{artist_id}]: {e}"
+            )
             return 0.0, "none"
 
     def search_artist_with_disambiguation(
@@ -280,10 +282,13 @@ class MusicBrainzClient:
             best_confidence_level = "none"
 
             for candidate in candidates:
+                candidate_name = candidate.get("name", "Unknown")
                 candidate_id = candidate["id"]
                 try:
                     confidence_score, confidence_level = (
-                        self.validate_artist_confidence(candidate_id, known_albums)
+                        self.validate_artist_confidence(
+                            candidate_id, candidate_name, known_albums
+                        )
                     )
 
                     if confidence_score > best_confidence:
