@@ -1,7 +1,6 @@
-
 import logging
 
-from src.config import *
+from src.config import AppConfig, load_config
 from src.database import Database
 from src.musicbrainz import MusicBrainzClient
 from src.scanner import MusicScanner
@@ -14,25 +13,25 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
-logging.getLogger('musicbrainzngs').setLevel(logging.WARNING)
+logging.getLogger("musicbrainzngs").setLevel(logging.WARNING)
+
 
 def main():
     """Main entry point for the new release notifier."""
     log.info("+-+-+-+-+-START-NEW_RELEASE_NOTIFIER-+-+-+-+-+")
-
-    # Initialize components
     health_check = HealthCheck()
     health_check.ping_start()
+    config = load_config("data/app_config.yml")
 
     try:
         # Initialize database
-        db = Database(DATABASE_PATH)
+        db = Database(config.server_paths.database)
 
         # Initialize other components
         mb_client = MusicBrainzClient()
-        scanner = MusicScanner(MUSIC_LIBRARY_PATH)
-        notifier = NotificationClient()
-        scheduler = ArtistScheduler(db, DAILY_CHECK_LIMIT)
+        scanner = MusicScanner(config.server_paths.music_library)
+        notifier = NotificationClient(config.ntfy)
+        scheduler = ArtistScheduler(db, config.detection_params.daily_check_limit)
 
         # Display current statistics
         stats = scheduler.get_schedule_stats()
@@ -48,7 +47,7 @@ def main():
             log.info(f"Adding new artist: {artist_name}")
             # Get albums for disambiguation
             known_albums = scanner.get_artist_albums(artist_name)
-            
+
             if known_albums:
                 # Use disambiguation for new artists
                 mb_id, confidence_level = mb_client.search_artist_with_disambiguation(
@@ -56,7 +55,9 @@ def main():
                 )
                 artist_id = db.add_artist(artist_name, mb_id, ignore_releases=False)
                 if mb_id and artist_id:
-                    scheduler.update_artist_confidence(artist_id, confidence_level, mb_id)
+                    scheduler.update_artist_confidence(
+                        artist_id, confidence_level, mb_id
+                    )
             else:
                 # Fallback to basic search if no albums found
                 mb_id = mb_client.search_artist(artist_name)
@@ -65,22 +66,28 @@ def main():
                     scheduler.update_artist_confidence(artist_id, "low", mb_id)
 
         # Step 1.5: Validate confidence for existing artists
-        log.info(f"Checking confidence for up to {DAILY_CONFIDENCE_CHECK_LIMIT} existing artists...")
-        artists_for_confidence_check = scheduler.get_artists_for_confidence_check(DAILY_CONFIDENCE_CHECK_LIMIT)
-        
+        log.info(
+            f"Checking confidence for up to {config.detection_params.daily_check_limit} existing artists..."
+        )
+        artists_for_confidence_check = scheduler.get_artists_for_confidence_check(
+            config.detection_params.daily_check_limit
+        )
+
         for artist in artists_for_confidence_check:
             artist_id = artist["id"]
             artist_name = artist["name"]
             current_mb_id = artist["musicbrainz_id"]
-            
+
             log.info(f"Validating confidence for: {artist_name}")
             known_albums = scanner.get_artist_albums(artist_name)
-            log.info("known_albums retrieved")            
+            log.info("known_albums retrieved")
             if known_albums and current_mb_id:
                 # Validate current MusicBrainz ID
                 try:
-                    confidence_score, confidence_level = mb_client.validate_artist_confidence(
-                        current_mb_id, known_albums
+                    confidence_score, confidence_level = (
+                        mb_client.validate_artist_confidence(
+                            current_mb_id, known_albums
+                        )
                     )
                     log.info(f"confidence_score: {confidence_score}")
                 except:
@@ -88,14 +95,22 @@ def main():
                     scheduler.update_artist_confidence(artist_id, confidence_level)
                 # If confidence is too low, try to find a better match
                 if confidence_score < DISAMBIGUATION_MIN_CONFIDENCE_THRESHOLD:
-                    log.warning(f"Low confidence for {artist_name}, attempting re-disambiguation")
-                    new_mb_id, new_confidence_level = mb_client.search_artist_with_disambiguation(
-                        artist_name, known_albums
+                    log.warning(
+                        f"Low confidence for {artist_name}, attempting re-disambiguation"
+                    )
+                    new_mb_id, new_confidence_level = (
+                        mb_client.search_artist_with_disambiguation(
+                            artist_name, known_albums
+                        )
                     )
                     log.info(f"new mb id: {new_mb_id}")
                     if new_mb_id != current_mb_id:
-                        log.info(f"Updated MusicBrainz ID for {artist_name}: {current_mb_id} -> {new_mb_id}")
-                        scheduler.update_artist_confidence(artist_id, new_confidence_level, new_mb_id)
+                        log.info(
+                            f"Updated MusicBrainz ID for {artist_name}: {current_mb_id} -> {new_mb_id}"
+                        )
+                        scheduler.update_artist_confidence(
+                            artist_id, new_confidence_level, new_mb_id
+                        )
                     else:
                         scheduler.update_artist_confidence(artist_id, confidence_level)
                 else:
@@ -182,9 +197,7 @@ def main():
         unnotified_releases = db.get_unnotified_releases()
 
         if unnotified_releases:
-            log.info(
-                f"Sending notifications for {len(unnotified_releases)} releases"
-            )
+            log.info(f"Sending notifications for {len(unnotified_releases)} releases")
 
             for release in unnotified_releases:
                 notifier.send_release_notification(
@@ -209,7 +222,7 @@ def main():
     except Exception as e:
         log.error(f"Fatal error in main execution: {e}", exc_info=True)
         health_check.ping(success=False)
-    
+
     finally:
         log.info("+-+-+-+-+-END-NEW_RELEASE_NOTIFIER-+-+-+-+-+")
 

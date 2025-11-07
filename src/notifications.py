@@ -4,15 +4,15 @@ import requests
 from typing import List, Dict, Optional
 import logging
 
-from . import config
+from config import NtfyConfig
 
 log = logging.getLogger(__name__)
 
 
 class NotificationClient:
-    def __init__(self):
-        self.topic = config.NTFY_TOPIC
-        self.token = config.NTFY_TOKEN
+    def __init__(self, config: NtfyConfig = NtfyConfig()):
+        self.topic = config.topic
+        self.token = config.token
 
     def send_release_notification(
         self,

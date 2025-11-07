@@ -1,43 +1,77 @@
 """Configuration settings for the new release notifier."""
 
-# Paths - server paths
-MUSIC_LIBRARY_PATH = ""
-DATABASE_PATH = ""
-LEGACY_CSV_PATH = ""
+import yaml
+from pydantic import BaseModel
 
-# MusicBrainz settings
-MUSICBRAINZ_USER_AGENT = "ReleaseNotifier"
-MUSICBRAINZ_VERSION = 1.0
-MUSICBRAINZ_CONTACT = ""
 
-# Cache and checking settings
-CACHE_EXPIRY_DAYS = 30
-DAILY_CHECK_LIMIT = 50  # Artists to check per day
-API_RATE_LIMIT_DELAY = 1.1  # Seconds between API calls (MusicBrainz allows 1/sec)
+class ServerPaths(BaseModel):
+    """Server path configurations."""
 
-# Release detection settings
-RELEASE_WINDOW_DAYS = 30  # Check for releases in the last N days and future releases
+    music_library_path: str = ""
+    database_path: str = ""
 
-# Release type filtering (empty means include all)
-EXCLUDED_RELEASE_TYPES = []  # Example: ['Live', 'Compilation']
-INCLUDED_RELEASE_TYPES = []  # If empty, includes all; otherwise only these types
 
-# Notification settings
-NTFY_TOPIC = ""
-NTFY_TOKEN = ""
+class MusicBrainzConfig(BaseModel):
+    """MusicBrainz API configuration settings."""
 
-# Health check settings
-HEALTHCHECK_URL = ""
-HEALTHCHECK_TIMEOUT = 10
+    user_agent: str = "ReleaseNotifier"
+    version: float = 1.0
+    contact: str = ""
+    rate_limit_delay: float = 1.1
+    max_retries: int = 3
+    intial_backoff: int = 1  # seconds
+    max_backoff: int = 60  # seconds
 
-# Disambiguation settings
-DISAMBIGUATION_MIN_CONFIDENCE_THRESHOLD = 0.3  # Minimum match score to accept
-DISAMBIGUATION_MAX_CANDIDATES = 5  # How many artist candidates to check
-DISAMBIGUATION_ALBUM_MATCH_WEIGHT = 0.6  # Minimum similarity for album matches
-CONFIDENCE_VALIDATION_INTERVAL_DAYS = 90  # How often to re-check confidence
-DAILY_CONFIDENCE_CHECK_LIMIT = 10  # How many existing artists to validate per day
 
-# Retry settings for API calls
-MAX_RETRIES = 3
-INITIAL_BACKOFF = 1  # seconds
-MAX_BACKOFF = 60  # seconds
+class DetectionParams(BaseModel):
+    """Parameters for release detection and disambiguation."""
+
+    cache_expiry_days: int = 30
+    daily_check_limit: int = 50
+    release_window_days: int = 30
+    excluded_release_types: list[str] = []
+    included_release_types: list[str] = []
+
+
+class DisambiguationParams(BaseModel):
+    """Parameters for artist disambiguation."""
+
+    min_confidence_threshold: float = 0.3
+    max_candidates: int = 5
+    album_match_weight: float = 0.6
+    confidence_validation_interval_days: int = 90
+    daily_confidence_check_limit: int = 20
+
+
+class NtfyConfig(BaseModel):
+    """ntfy notification service configuration settings."""
+
+    topic: str = ""
+    token: str = ""
+
+
+class HealthCheckConfig(BaseModel):
+    """Health check configuration settings."""
+
+    url: str = ""
+    timeout: int = 10  # seconds
+
+
+class AppConfig(BaseModel):
+    """Application configuration settings."""
+
+    server_paths: ServerPaths = ServerPaths()
+    musicbrainz: MusicBrainzConfig = MusicBrainzConfig()
+    detection_params: DetectionParams = DetectionParams()
+    disambiguation_params: DisambiguationParams = DisambiguationParams()
+    ntfy: NtfyConfig = NtfyConfig()
+    health_check: HealthCheckConfig = HealthCheckConfig()
+
+
+def load_config(yaml_path: str = "data/app_config.yml") -> AppConfig:
+    """Load configuration from a YAML file."""
+
+    with open(yaml_path, "r") as file:
+        config_data = yaml.safe_load(file)
+
+    return AppConfig(**config_data)

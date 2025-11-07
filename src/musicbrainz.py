@@ -17,9 +17,12 @@ import time
 import random
 import musicbrainzngs
 
+
 class ConnectionTimeoutError(Exception):
     """Raised when the connection timeout is exceeded."""
+
     pass
+
 
 class MusicBrainzClient:
     def __init__(self, connection_timeout=300):  # 5 minutes default
@@ -86,7 +89,7 @@ class MusicBrainzClient:
             sleep_time = min(backoff * (2**attempt), config.MAX_BACKOFF)
             jitter = random.uniform(0.1, 0.3) * sleep_time
             total_sleep_time = sleep_time + jitter
-            
+
             # Check if sleeping would exceed the timeout
             if elapsed_time + total_sleep_time > self.connection_timeout:
                 remaining_time = self.connection_timeout - elapsed_time
@@ -128,9 +131,7 @@ class MusicBrainzClient:
 
         try:
             while True:
-                log.debug(
-                    f"Fetching release groups for {artist_id}, offset {offset}"
-                )
+                log.debug(f"Fetching release groups for {artist_id}, offset {offset}")
 
                 response = self._retry_with_backoff(
                     musicbrainzngs.browse_release_groups,
@@ -236,7 +237,9 @@ class MusicBrainzClient:
                 return 0.0, "none"
 
             # Use album matcher to calculate confidence
-            log.info(f"Calculating confidence using {len(all_releases)} retrieved release groups")
+            log.info(
+                f"Calculating confidence using {len(all_releases)} retrieved release groups"
+            )
             matches, confidence_score = AlbumMatcher.find_best_matches(
                 known_albums,
                 all_releases,
