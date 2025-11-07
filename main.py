@@ -1,6 +1,6 @@
 import logging
 
-from src.config import AppConfig, load_config
+from src.config import load_config
 from src.database import Database
 from src.musicbrainz import MusicBrainzClient
 from src.scanner import MusicScanner
@@ -28,7 +28,7 @@ def main():
         db = Database(config.server_paths.database)
 
         # Initialize other components
-        mb_client = MusicBrainzClient()
+        mb_client = MusicBrainzClient(config.musicbrainz, config.disambiguation_params)
         scanner = MusicScanner(config.server_paths.music_library)
         notifier = NotificationClient(config.ntfy)
         scheduler = ArtistScheduler(db, config.detection_params.daily_check_limit)
@@ -94,7 +94,10 @@ def main():
                     log.exception("Confidence check failed: ")
                     scheduler.update_artist_confidence(artist_id, confidence_level)
                 # If confidence is too low, try to find a better match
-                if confidence_score < DISAMBIGUATION_MIN_CONFIDENCE_THRESHOLD:
+                if (
+                    confidence_score
+                    < config.disambiguation_params.min_confidence_threshold
+                ):
                     log.warning(
                         f"Low confidence for {artist_name}, attempting re-disambiguation"
                     )
@@ -120,7 +123,9 @@ def main():
                 scheduler.update_artist_confidence(artist_id, "low")
 
         # Step 2: Get artists to check today
-        log.info(f"Getting up to {DAILY_CHECK_LIMIT} artists to check today...")
+        log.info(
+            f"Getting up to {config.detection_params.daily_check_limit} artists to check today..."
+        )
         artists_to_check = scheduler.get_artists_to_check_today()
 
         if not artists_to_check:
@@ -157,7 +162,9 @@ def main():
 
             # Get recent releases
             try:
-                releases = mb_client.get_recent_releases(mb_id, RELEASE_WINDOW_DAYS)
+                releases = mb_client.get_recent_releases(
+                    mb_id, config.detection_params.release_window_days
+                )
                 api_calls += 1
 
                 # Add new releases to database

@@ -7,15 +7,10 @@ from typing import Optional, List, Dict, Tuple
 import logging
 from datetime import datetime, timedelta
 
-from . import config
+from config import DisambiguationParams, MusicBrainzConfig
 from .disambiguation import AlbumMatcher
 
 log = logging.getLogger(__name__)
-
-
-import time
-import random
-import musicbrainzngs
 
 
 class ConnectionTimeoutError(Exception):
@@ -25,32 +20,42 @@ class ConnectionTimeoutError(Exception):
 
 
 class MusicBrainzClient:
-    def __init__(self, connection_timeout=300):  # 5 minutes default
+    def __init__(
+        self,
+        config: MusicBrainzConfig = MusicBrainzConfig(),
+        disambig_params: DisambiguationParams = DisambiguationParams(),
+    ):
         musicbrainzngs.set_useragent(
-            config.MUSICBRAINZ_USER_AGENT,
-            config.MUSICBRAINZ_VERSION,
-            contact=config.MUSICBRAINZ_CONTACT,
+            app=config.user_agent,
+            version=config.version,
+            contact=config.contact,
         )
-        self.last_request_time = 0
-        self.connection_timeout = connection_timeout
+        self.last_request_time = config.last_request_time
+        self.connection_timeout = config.connection_timeout
+        self.rate_limit_delay = config.rate_limit_delay
+        self.max_retries = config.max_retries
+        self.initial_backoff = config.initial_backoff
+        self.max_backoff = config.max_backoff
+        self.excluded_release_types = config.excluded_release_types
+        self.included_release_types = config.included_release_types
+        self.disambig_params = disambig_params
 
     def _rate_limit(self):
         """Ensure we don't exceed the MusicBrainz rate limit of 1 request per second."""
         current_time = time.time()
         time_since_last = current_time - self.last_request_time
 
-        if time_since_last < config.API_RATE_LIMIT_DELAY:
-            sleep_time = config.API_RATE_LIMIT_DELAY - time_since_last
+        if time_since_last < self.rate_limit_delay:
+            sleep_time = self.rate_limit_delay - time_since_last
             time.sleep(sleep_time)
 
         self.last_request_time = time.time()
 
     def _retry_with_backoff(self, func, *args, **kwargs):
         """Execute a function with exponential backoff retry and connection timeout."""
-        backoff = config.INITIAL_BACKOFF
         start_time = time.time()
 
-        for attempt in range(config.MAX_RETRIES):
+        for attempt in range(self.max_retries):
             # Check if we've exceeded the connection timeout
             elapsed_time = time.time() - start_time
             if elapsed_time > self.connection_timeout:
@@ -64,7 +69,7 @@ class MusicBrainzClient:
 
             except musicbrainzngs.NetworkError as e:
                 log.warning(f"Network error on attempt {attempt + 1}: {e}")
-                if attempt == config.MAX_RETRIES - 1:
+                if attempt == self.max_retries - 1:
                     raise
 
             except musicbrainzngs.ResponseError as e:
@@ -74,7 +79,7 @@ class MusicBrainzClient:
                     and e.cause.code == 429
                 ):
                     log.warning(f"Rate limit exceeded on attempt {attempt + 1}")
-                    if attempt == config.MAX_RETRIES - 1:
+                    if attempt == self.max_retries - 1:
                         raise
                 else:
                     # For other response errors, don't retry
@@ -82,11 +87,11 @@ class MusicBrainzClient:
 
             except Exception as e:
                 log.error(f"Unexpected error on attempt {attempt + 1}: {e}")
-                if attempt == config.MAX_RETRIES - 1:
+                if attempt == self.max_retries - 1:
                     raise
 
             # Calculate sleep time with exponential backoff and jitter
-            sleep_time = min(backoff * (2**attempt), config.MAX_BACKOFF)
+            sleep_time = min(self.initial_backoff * (2**attempt), self.max_backoff)
             jitter = random.uniform(0.1, 0.3) * sleep_time
             total_sleep_time = sleep_time + jitter
 
@@ -148,14 +153,14 @@ class MusicBrainzClient:
                         continue
 
                     # Apply release type filtering if configured
-                    if config.EXCLUDED_RELEASE_TYPES:
+                    if self.excluded_release_types:
                         release_type = rg.get("type", "")
-                        if release_type in config.EXCLUDED_RELEASE_TYPES:
+                        if release_type in self.excluded_release_types:
                             continue
 
-                    if config.INCLUDED_RELEASE_TYPES:
+                    if self.included_release_types:
                         release_type = rg.get("type", "")
-                        if release_type not in config.INCLUDED_RELEASE_TYPES:
+                        if release_type not in self.included_release_types:
                             continue
 
                     # Parse and filter by date if specified
@@ -243,7 +248,7 @@ class MusicBrainzClient:
             matches, confidence_score = AlbumMatcher.find_best_matches(
                 known_albums,
                 all_releases,
-                min_similarity=config.DISAMBIGUATION_ALBUM_MATCH_WEIGHT,
+                min_similarity=self.disambig_params.album_match_weight,
             )
 
             confidence_level = AlbumMatcher.get_confidence_level(confidence_score)
@@ -267,7 +272,7 @@ class MusicBrainzClient:
             result = self._retry_with_backoff(
                 musicbrainzngs.search_artists,
                 artist=artist_name,
-                limit=config.DISAMBIGUATION_MAX_CANDIDATES,
+                limit=self.disambig_params.max_candidates,
             )
 
             if result["artist-count"] == 0:
@@ -300,14 +305,16 @@ class MusicBrainzClient:
 
             if (
                 best_candidate
-                and best_confidence >= config.DISAMBIGUATION_MIN_CONFIDENCE_THRESHOLD
+                and best_confidence >= self.disambig_params.min_confidence_threshold
             ):
                 log.info(
                     f"Selected {best_candidate} for {artist_name} with confidence {best_confidence:.2f}"
                 )
                 return best_candidate, best_confidence_level
             else:
-                log.warning(f"Low confidence for {artist_name}, using fallback")
+                log.warning(
+                    f"Low confidence for {artist_name}, using top candidate: {candidates[0]['id']}"
+                )
                 return candidates[0]["id"], "low"
 
         except Exception as e:
