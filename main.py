@@ -1,47 +1,44 @@
-
 import logging
 
-from src.config import *
+import typer
+
+from src.config import load_config
 from src.database import Database
+from src.log_config import basic_config
 from src.musicbrainz import MusicBrainzClient
 from src.scanner import MusicScanner
 from src.notifications import NotificationClient, HealthCheck
 from src.scheduler import ArtistScheduler
 
-log = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logging.getLogger('musicbrainzngs').setLevel(logging.WARNING)
+app = typer.Typer()
 
-def main(migrate_from_csv: bool = False):
+
+@app.command()
+def main(
+    config_path: str = typer.Option(
+        "data/app_config.yml", "--config", help="Path to configuration file"
+    ),
+    verbose: bool = typer.Option(False, "--verbose", help="Enable debug logging"),
+):
     """Main entry point for the new release notifier."""
-    log.info("+-+-+-+-+-START-NEW_RELEASE_NOTIFIER-+-+-+-+-+")
+    basic_config(verbose)
+    log = logging.getLogger(__name__)
 
-    # Initialize components
-    health_check = HealthCheck()
+    log.info("+-+-+-+-+-START-NEW_RELEASE_NOTIFIER-+-+-+-+-+")
+    # Load config
+    config = load_config(config_path)
+
+    # Initialize health check
+    health_check = HealthCheck(config.health_check)
     health_check.ping_start()
 
     try:
-        # Initialize database
-        db = Database(DATABASE_PATH)
-
-        # Migrate from CSV if it exists
-        if migrate_from_csv:
-            try:
-                db.migrate_from_csv(LEGACY_CSV_PATH)
-            except Exception as e:
-                log.warning(
-                    f"CSV migration failed (this is normal if already migrated): {e}"
-                )
-
-        # Initialize other components
-        mb_client = MusicBrainzClient()
-        scanner = MusicScanner(MUSIC_LIBRARY_PATH)
-        notifier = NotificationClient()
-        scheduler = ArtistScheduler(db, DAILY_CHECK_LIMIT)
+        # Initialize components
+        db = Database(config.server_paths.database)
+        mb_client = MusicBrainzClient(config.musicbrainz, config.disambiguation_params)
+        scanner = MusicScanner(config.server_paths.music_library)
+        notifier = NotificationClient(config.ntfy)
+        scheduler = ArtistScheduler(db, config.detection_params.daily_check_limit)
 
         # Display current statistics
         stats = scheduler.get_schedule_stats()
@@ -57,7 +54,7 @@ def main(migrate_from_csv: bool = False):
             log.info(f"Adding new artist: {artist_name}")
             # Get albums for disambiguation
             known_albums = scanner.get_artist_albums(artist_name)
-            
+
             if known_albums:
                 # Use disambiguation for new artists
                 mb_id, confidence_level = mb_client.search_artist_with_disambiguation(
@@ -65,7 +62,9 @@ def main(migrate_from_csv: bool = False):
                 )
                 artist_id = db.add_artist(artist_name, mb_id, ignore_releases=False)
                 if mb_id and artist_id:
-                    scheduler.update_artist_confidence(artist_id, confidence_level, mb_id)
+                    scheduler.update_artist_confidence(
+                        artist_id, confidence_level, mb_id
+                    )
             else:
                 # Fallback to basic search if no albums found
                 mb_id = mb_client.search_artist(artist_name)
@@ -74,32 +73,56 @@ def main(migrate_from_csv: bool = False):
                     scheduler.update_artist_confidence(artist_id, "low", mb_id)
 
         # Step 1.5: Validate confidence for existing artists
-        log.info(f"Checking confidence for up to {DAILY_CONFIDENCE_CHECK_LIMIT} existing artists...")
-        artists_for_confidence_check = scheduler.get_artists_for_confidence_check(DAILY_CONFIDENCE_CHECK_LIMIT)
-        
+        log.info(
+            f"Checking confidence for up to {config.detection_params.daily_check_limit} existing artists..."
+        )
+        artists_for_confidence_check = scheduler.get_artists_for_confidence_check(
+            config.detection_params.daily_check_limit
+        )
+
         for artist in artists_for_confidence_check:
             artist_id = artist["id"]
             artist_name = artist["name"]
             current_mb_id = artist["musicbrainz_id"]
-            
-            log.info(f"Validating confidence for: {artist_name}")
+
+            log.info(
+                f"Validating confidence for: {artist_name} [current ID: {current_mb_id}]"
+            )
             known_albums = scanner.get_artist_albums(artist_name)
-            
+            log.info("known_albums retrieved")
             if known_albums and current_mb_id:
                 # Validate current MusicBrainz ID
-                confidence_score, confidence_level = mb_client.validate_artist_confidence(
-                    current_mb_id, known_albums
-                )
-                
-                # If confidence is too low, try to find a better match
-                if confidence_score < DISAMBIGUATION_MIN_CONFIDENCE_THRESHOLD:
-                    log.warning(f"Low confidence for {artist_name}, attempting re-disambiguation")
-                    new_mb_id, new_confidence_level = mb_client.search_artist_with_disambiguation(
-                        artist_name, known_albums
+                try:
+                    confidence_score, confidence_level = (
+                        mb_client.validate_artist_confidence(
+                            current_mb_id, artist_name, known_albums
+                        )
                     )
+                    log.info(f"confidence_score: {confidence_score}")
+                except:
+                    log.exception("Confidence check failed: ")
+                    scheduler.update_artist_confidence(artist_id, confidence_level)
+                # If confidence is too low, try to find a better match
+                if (
+                    confidence_score
+                    < config.disambiguation_params.min_confidence_threshold
+                ):
+                    log.warning(
+                        f"Low confidence for {artist_name}, attempting re-disambiguation"
+                    )
+                    new_mb_id, new_confidence_level = (
+                        mb_client.search_artist_with_disambiguation(
+                            artist_name, known_albums
+                        )
+                    )
+                    log.info(f"new mb id: {new_mb_id}")
                     if new_mb_id != current_mb_id:
-                        log.info(f"Updated MusicBrainz ID for {artist_name}: {current_mb_id} -> {new_mb_id}")
-                        scheduler.update_artist_confidence(artist_id, new_confidence_level, new_mb_id)
+                        log.info(
+                            f"Updated MusicBrainz ID for {artist_name}: {current_mb_id} -> {new_mb_id}"
+                        )
+                        scheduler.update_artist_confidence(
+                            artist_id, new_confidence_level, new_mb_id
+                        )
                     else:
                         scheduler.update_artist_confidence(artist_id, confidence_level)
                 else:
@@ -109,7 +132,9 @@ def main(migrate_from_csv: bool = False):
                 scheduler.update_artist_confidence(artist_id, "low")
 
         # Step 2: Get artists to check today
-        log.info(f"Getting up to {DAILY_CHECK_LIMIT} artists to check today...")
+        log.info(
+            f"Getting up to {config.detection_params.daily_check_limit} artists to check today..."
+        )
         artists_to_check = scheduler.get_artists_to_check_today()
 
         if not artists_to_check:
@@ -121,7 +146,6 @@ def main(migrate_from_csv: bool = False):
 
         # Step 3: Check each artist for new releases
         api_calls = 0
-        cache_hits = 0
         all_new_releases = []
 
         for artist in artists_to_check:
@@ -146,7 +170,9 @@ def main(migrate_from_csv: bool = False):
 
             # Get recent releases
             try:
-                releases = mb_client.get_recent_releases(mb_id, RELEASE_WINDOW_DAYS)
+                releases = mb_client.get_recent_releases(
+                    mb_id, config.detection_params.release_window_days
+                )
                 api_calls += 1
 
                 # Add new releases to database
@@ -186,9 +212,7 @@ def main(migrate_from_csv: bool = False):
         unnotified_releases = db.get_unnotified_releases()
 
         if unnotified_releases:
-            log.info(
-                f"Sending notifications for {len(unnotified_releases)} releases"
-            )
+            log.info(f"Sending notifications for {len(unnotified_releases)} releases")
 
             for release in unnotified_releases:
                 notifier.send_release_notification(
@@ -213,10 +237,10 @@ def main(migrate_from_csv: bool = False):
     except Exception as e:
         log.error(f"Fatal error in main execution: {e}", exc_info=True)
         health_check.ping(success=False)
-    
+
     finally:
         log.info("+-+-+-+-+-END-NEW_RELEASE_NOTIFIER-+-+-+-+-+")
 
 
 if __name__ == "__main__":
-    main()
+    app()

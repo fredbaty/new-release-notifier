@@ -1,0 +1,13 @@
+server_paths:
+  music_library: "/path/to/your/music/library"
+  database: "/path/to/your/database/releases.db"
+
+ntfy:
+  topic: "music-releases"
+  token: "tk_exampletoken123456"
+
+health_check:
+  url: "https://hc-ping.com/your-uuid-here"
+  
+musicbrainz:
+  contact: "your-email@example.com"

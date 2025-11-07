@@ -1,25 +1,24 @@
 """Notification handling via ntfy."""
 
 import requests
-from typing import List, Dict, Optional
 import logging
 
-from . import config
+from src.config import HealthCheckConfig, NtfyConfig
 
 log = logging.getLogger(__name__)
 
 
 class NotificationClient:
-    def __init__(self):
-        self.topic = config.NTFY_TOPIC
-        self.token = config.NTFY_TOKEN
+    def __init__(self, config: NtfyConfig = NtfyConfig()):
+        self.topic = config.topic
+        self.token = config.token
 
     def send_release_notification(
         self,
         artist_name: str,
         title: str,
         release_date: str,
-        release_type: Optional[str] = None,
+        release_type: str | None = None,
     ):
         """Send a notification for a new release."""
         if release_type:
@@ -52,7 +51,7 @@ class NotificationClient:
         except requests.RequestException as e:
             log.error(f"Error sending notification: {e}")
 
-    def send_summary_notification(self, releases: List[Dict]):
+    def send_summary_notification(self, releases: list[dict]):
         """Send a summary notification for multiple releases."""
         if not releases:
             return
@@ -78,9 +77,9 @@ class NotificationClient:
 
 
 class HealthCheck:
-    def __init__(self):
-        self.url = config.HEALTHCHECK_URL
-        self.timeout = config.HEALTHCHECK_TIMEOUT
+    def __init__(self, config: HealthCheckConfig = HealthCheckConfig()):
+        self.url = config.url
+        self.timeout = config.timeout
 
     def ping(self, success: bool = True):
         """Send a health check ping."""
@@ -104,7 +103,7 @@ class HealthCheck:
     def ping_start(self):
         """Send a start ping."""
         try:
-            response = requests.get(f"{self.url}/start", timeout=self.timeout)
+            requests.get(f"{self.url}/start", timeout=self.timeout)
             log.debug("Health check start ping sent")
         except requests.RequestException as e:
             log.error(f"Error sending health check start ping: {e}")
