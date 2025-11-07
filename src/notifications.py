@@ -1,7 +1,6 @@
 """Notification handling via ntfy."""
 
 import requests
-from typing import List, Dict, Optional
 import logging
 
 from config import HealthCheckConfig, NtfyConfig
@@ -19,7 +18,7 @@ class NotificationClient:
         artist_name: str,
         title: str,
         release_date: str,
-        release_type: Optional[str] = None,
+        release_type: str | None = None,
     ):
         """Send a notification for a new release."""
         if release_type:
@@ -52,7 +51,7 @@ class NotificationClient:
         except requests.RequestException as e:
             log.error(f"Error sending notification: {e}")
 
-    def send_summary_notification(self, releases: List[Dict]):
+    def send_summary_notification(self, releases: list[dict]):
         """Send a summary notification for multiple releases."""
         if not releases:
             return
@@ -104,7 +103,7 @@ class HealthCheck:
     def ping_start(self):
         """Send a start ping."""
         try:
-            response = requests.get(f"{self.url}/start", timeout=self.timeout)
+            requests.get(f"{self.url}/start", timeout=self.timeout)
             log.debug("Health check start ping sent")
         except requests.RequestException as e:
             log.error(f"Error sending health check start ping: {e}")
