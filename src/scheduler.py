@@ -1,10 +1,8 @@
 """Artist checking scheduler to manage the daily check rotation."""
 
-from datetime import datetime, timedelta
-from typing import List, Dict, Optional
 import logging
 
-from .database import Database
+from src.database import Database
 
 log = logging.getLogger(__name__)
 
@@ -14,7 +12,7 @@ class ArtistScheduler:
         self.db = database
         self.daily_limit = daily_limit
 
-    def get_artists_to_check_today(self) -> List[Dict]:
+    def get_artists_to_check_today(self) -> list[dict]:
         """Get the list of artists that should be checked today."""
         return self.db.get_artists_for_checking(self.daily_limit)
 
@@ -22,7 +20,7 @@ class ArtistScheduler:
         """Update an artist's record after checking for releases."""
         self.db.update_artist_check(artist_id)
 
-    def get_schedule_stats(self) -> Dict:
+    def get_schedule_stats(self) -> dict:
         """Get statistics about the checking schedule."""
         stats = self.db.get_stats()
 
@@ -35,7 +33,7 @@ class ArtistScheduler:
         stats["daily_limit"] = self.daily_limit
         return stats
 
-    def get_artists_for_confidence_check(self, limit: int) -> List[Dict]:
+    def get_artists_for_confidence_check(self, limit: int) -> list[dict]:
         """Get artists that need confidence validation."""
         return self.db.get_artists_for_confidence_check(limit)
 
@@ -43,7 +41,7 @@ class ArtistScheduler:
         self,
         artist_id: int,
         confidence_level: str,
-        musicbrainz_id: Optional[str] = None,
+        musicbrainz_id: str | None = None,
     ):
         """Update an artist's confidence after validation."""
         self.db.update_artist_confidence(artist_id, confidence_level, musicbrainz_id)
