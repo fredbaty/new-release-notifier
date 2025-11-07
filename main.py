@@ -1,34 +1,40 @@
 import logging
 
+import typer
+
 from src.config import load_config
 from src.database import Database
+from src.log_config import basic_config
 from src.musicbrainz import MusicBrainzClient
 from src.scanner import MusicScanner
 from src.notifications import NotificationClient, HealthCheck
 from src.scheduler import ArtistScheduler
 
-log = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-logging.getLogger("musicbrainzngs").setLevel(logging.WARNING)
+app = typer.Typer()
 
 
-def main(config_path: str = "data/app_config.yml"):
+@app.command()
+def main(
+    config_path: str = typer.Option(
+        "data/app_config.yml", "--config", help="Path to configuration file"
+    ),
+    verbose: bool = typer.Option(False, "--verbose", help="Enable debug logging"),
+):
     """Main entry point for the new release notifier."""
+    basic_config(verbose)
+    log = logging.getLogger(__name__)
+
     log.info("+-+-+-+-+-START-NEW_RELEASE_NOTIFIER-+-+-+-+-+")
+    # Load config
     config = load_config(config_path)
 
+    # Initialize health check
     health_check = HealthCheck(config.health_check)
     health_check.ping_start()
 
     try:
-        # Initialize database
+        # Initialize components
         db = Database(config.server_paths.database)
-
-        # Initialize other components
         mb_client = MusicBrainzClient(config.musicbrainz, config.disambiguation_params)
         scanner = MusicScanner(config.server_paths.music_library)
         notifier = NotificationClient(config.ntfy)
@@ -235,4 +241,4 @@ def main(config_path: str = "data/app_config.yml"):
 
 
 if __name__ == "__main__":
-    main()
+    app()
