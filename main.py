@@ -16,7 +16,7 @@ logging.basicConfig(
 )
 logging.getLogger('musicbrainzngs').setLevel(logging.WARNING)
 
-def main(migrate_from_csv: bool = False):
+def main():
     """Main entry point for the new release notifier."""
     log.info("+-+-+-+-+-START-NEW_RELEASE_NOTIFIER-+-+-+-+-+")
 
@@ -27,15 +27,6 @@ def main(migrate_from_csv: bool = False):
     try:
         # Initialize database
         db = Database(DATABASE_PATH)
-
-        # Migrate from CSV if it exists
-        if migrate_from_csv:
-            try:
-                db.migrate_from_csv(LEGACY_CSV_PATH)
-            except Exception as e:
-                log.warning(
-                    f"CSV migration failed (this is normal if already migrated): {e}"
-                )
 
         # Initialize other components
         mb_client = MusicBrainzClient()
@@ -84,19 +75,24 @@ def main(migrate_from_csv: bool = False):
             
             log.info(f"Validating confidence for: {artist_name}")
             known_albums = scanner.get_artist_albums(artist_name)
-            
+            log.info("known_albums retrieved")            
             if known_albums and current_mb_id:
                 # Validate current MusicBrainz ID
-                confidence_score, confidence_level = mb_client.validate_artist_confidence(
-                    current_mb_id, known_albums
-                )
-                
+                try:
+                    confidence_score, confidence_level = mb_client.validate_artist_confidence(
+                        current_mb_id, known_albums
+                    )
+                    log.info(f"confidence_score: {confidence_score}")
+                except:
+                    log.exception("Confidence check failed: ")
+                    scheduler.update_artist_confidence(artist_id, confidence_level)
                 # If confidence is too low, try to find a better match
                 if confidence_score < DISAMBIGUATION_MIN_CONFIDENCE_THRESHOLD:
                     log.warning(f"Low confidence for {artist_name}, attempting re-disambiguation")
                     new_mb_id, new_confidence_level = mb_client.search_artist_with_disambiguation(
                         artist_name, known_albums
                     )
+                    log.info(f"new mb id: {new_mb_id}")
                     if new_mb_id != current_mb_id:
                         log.info(f"Updated MusicBrainz ID for {artist_name}: {current_mb_id} -> {new_mb_id}")
                         scheduler.update_artist_confidence(artist_id, new_confidence_level, new_mb_id)

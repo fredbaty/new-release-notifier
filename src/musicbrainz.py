@@ -13,14 +13,23 @@ from .disambiguation import AlbumMatcher
 log = logging.getLogger(__name__)
 
 
+import time
+import random
+import musicbrainzngs
+
+class ConnectionTimeoutError(Exception):
+    """Raised when the connection timeout is exceeded."""
+    pass
+
 class MusicBrainzClient:
-    def __init__(self):
+    def __init__(self, connection_timeout=300):  # 5 minutes default
         musicbrainzngs.set_useragent(
             config.MUSICBRAINZ_USER_AGENT,
             config.MUSICBRAINZ_VERSION,
             contact=config.MUSICBRAINZ_CONTACT,
         )
         self.last_request_time = 0
+        self.connection_timeout = connection_timeout
 
     def _rate_limit(self):
         """Ensure we don't exceed the MusicBrainz rate limit of 1 request per second."""
@@ -34,10 +43,18 @@ class MusicBrainzClient:
         self.last_request_time = time.time()
 
     def _retry_with_backoff(self, func, *args, **kwargs):
-        """Execute a function with exponential backoff retry."""
+        """Execute a function with exponential backoff retry and connection timeout."""
         backoff = config.INITIAL_BACKOFF
+        start_time = time.time()
 
         for attempt in range(config.MAX_RETRIES):
+            # Check if we've exceeded the connection timeout
+            elapsed_time = time.time() - start_time
+            if elapsed_time > self.connection_timeout:
+                raise ConnectionTimeoutError(
+                    f"Connection timeout exceeded ({self.connection_timeout}s) after {attempt + 1} attempts"
+                )
+
             try:
                 self._rate_limit()
                 return func(*args, **kwargs)
@@ -65,10 +82,22 @@ class MusicBrainzClient:
                 if attempt == config.MAX_RETRIES - 1:
                     raise
 
-            # Exponential backoff with jitter
+            # Calculate sleep time with exponential backoff and jitter
             sleep_time = min(backoff * (2**attempt), config.MAX_BACKOFF)
             jitter = random.uniform(0.1, 0.3) * sleep_time
-            time.sleep(sleep_time + jitter)
+            total_sleep_time = sleep_time + jitter
+            
+            # Check if sleeping would exceed the timeout
+            if elapsed_time + total_sleep_time > self.connection_timeout:
+                remaining_time = self.connection_timeout - elapsed_time
+                if remaining_time <= 0:
+                    raise ConnectionTimeoutError(
+                        f"Connection timeout exceeded ({self.connection_timeout}s) during backoff"
+                    )
+                # Sleep for the remaining time only
+                time.sleep(remaining_time)
+            else:
+                time.sleep(total_sleep_time)
 
     def search_artist(self, artist_name: str) -> Optional[str]:
         """Search for an artist and return their MusicBrainz ID."""
@@ -199,6 +228,7 @@ class MusicBrainzClient:
 
         try:
             # Get all release groups for this artist (no date filter for confidence check)
+            log.info(f"Getting all release groups for artist id {artist_id}")
             all_releases = self.get_release_groups(artist_id, since_date=None)
 
             if not all_releases:
@@ -206,6 +236,7 @@ class MusicBrainzClient:
                 return 0.0, "none"
 
             # Use album matcher to calculate confidence
+            log.info(f"Calculating confidence using {len(all_releases)} retrieved release groups")
             matches, confidence_score = AlbumMatcher.find_best_matches(
                 known_albums,
                 all_releases,
