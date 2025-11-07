@@ -2,8 +2,6 @@
 
 import sqlite3
 import pandas as pd
-from datetime import datetime, timedelta
-from typing import List, Dict, Optional
 import logging
 from pathlib import Path
 
@@ -122,7 +120,7 @@ class Database:
     def add_artist(
         self,
         name: str,
-        musicbrainz_id: Optional[str] = None,
+        musicbrainz_id: str | None = None,
         ignore_releases: bool = False,
     ) -> int:
         """Add a new artist and return their ID."""
@@ -142,7 +140,7 @@ class Database:
 
             return cursor.lastrowid or 0
 
-    def get_artists_for_checking(self, limit: int) -> List[Dict]:
+    def get_artists_for_checking(self, limit: int) -> list[dict]:
         """Get artists that need to be checked, prioritizing least recently checked."""
         with self.get_connection() as conn:
             cursor = conn.execute(
@@ -180,7 +178,7 @@ class Database:
         musicbrainz_id: str,
         title: str,
         release_date: str,
-        release_type: Optional[str] = None,
+        release_type: str | None = None,
     ) -> bool:
         """Add a new release. Returns True if it's a new release, False if duplicate."""
         with self.get_connection() as conn:
@@ -195,7 +193,7 @@ class Database:
 
             return cursor.rowcount > 0
 
-    def get_unnotified_releases(self) -> List[Dict]:
+    def get_unnotified_releases(self) -> list[dict]:
         """Get releases that haven't been notified yet."""
         with self.get_connection() as conn:
             cursor = conn.execute(
@@ -218,7 +216,7 @@ class Database:
                 "UPDATE releases SET notified = TRUE WHERE id = ?", (release_id,)
             )
 
-    def get_all_artists(self) -> List[str]:
+    def get_all_artists(self) -> list[str]:
         """Get all artist names in the database."""
         with self.get_connection() as conn:
             cursor = conn.execute("SELECT name FROM artists")
@@ -234,7 +232,7 @@ class Database:
                 (musicbrainz_id, name),
             )
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get database statistics."""
         with self.get_connection() as conn:
             stats = {}
@@ -271,7 +269,7 @@ class Database:
         self,
         artist_id: int,
         confidence_level: str,
-        musicbrainz_id: Optional[str] = None,
+        musicbrainz_id: str | None = None,
     ):
         """Update an artist's disambiguation confidence and optionally their MusicBrainz ID."""
         with self.get_connection() as conn:
@@ -297,7 +295,7 @@ class Database:
                     (confidence_level, artist_id),
                 )
 
-    def get_artists_for_confidence_check(self, limit: int) -> List[Dict]:
+    def get_artists_for_confidence_check(self, limit: int) -> list[dict]:
         """Get artists that need confidence validation."""
         with self.get_connection() as conn:
             cursor = conn.execute(
