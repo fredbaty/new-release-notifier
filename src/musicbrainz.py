@@ -3,7 +3,6 @@
 import musicbrainzngs
 import time
 import random
-from typing import Optional, List, Dict, Tuple
 import logging
 from datetime import datetime, timedelta
 
@@ -107,7 +106,7 @@ class MusicBrainzClient:
             else:
                 time.sleep(total_sleep_time)
 
-    def search_artist(self, artist_name: str) -> Optional[str]:
+    def search_artist(self, artist_name: str) -> str | None:
         """Search for an artist and return their MusicBrainz ID."""
         try:
             result = self._retry_with_backoff(
@@ -127,8 +126,8 @@ class MusicBrainzClient:
             return None
 
     def get_release_groups(
-        self, artist_id: str, since_date: Optional[datetime] = None
-    ) -> List[Dict]:
+        self, artist_id: str, since_date: datetime | None = None
+    ) -> list[dict]:
         """Get release groups for an artist, optionally filtered by date."""
         all_release_groups = []
         offset = 0
@@ -212,14 +211,14 @@ class MusicBrainzClient:
             log.error(f"Error fetching release groups for artist {artist_id}: {e}")
             return []
 
-    def get_recent_releases(self, artist_id: str, days_back: int = 30) -> List[Dict]:
+    def get_recent_releases(self, artist_id: str, days_back: int = 30) -> list[dict]:
         """Get releases from the last N days and any future releases."""
         cutoff_date = datetime.now() - timedelta(days=days_back)
         return self.get_release_groups(artist_id, since_date=cutoff_date)
 
     def validate_artist_confidence(
-        self, artist_id: str, known_albums: List[str]
-    ) -> Tuple[float, str]:
+        self, artist_id: str, known_albums: list[str]
+    ) -> tuple[float, str]:
         """
         Validate confidence of an existing MusicBrainz ID using known albums.
 
@@ -265,8 +264,8 @@ class MusicBrainzClient:
             return 0.0, "none"
 
     def search_artist_with_disambiguation(
-        self, artist_name: str, known_albums: List[str]
-    ) -> Tuple[Optional[str], str]:
+        self, artist_name: str, known_albums: list[str]
+    ) -> tuple[str | None, str]:
         """Search for an artist with disambiguation using known albums."""
         try:
             result = self._retry_with_backoff(
