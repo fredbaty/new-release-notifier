@@ -46,8 +46,7 @@ class Database:
                     ignore_releases BOOLEAN DEFAULT FALSE,
                     last_checked DATETIME,
                     check_count INTEGER DEFAULT 0,
-                    disambiguation_confidence TEXT,
-                    confidence_last_checked DATETIME,
+                    mb_id_source TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """
@@ -83,6 +82,9 @@ class Database:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_releases_notified ON releases (notified)"
             )
+
+            # Run migrations for existing databases
+            self._migrate_schema(conn)
 
     def migrate_from_csv(self, csv_path: str):
         """Migrate data from the legacy CSV file."""
@@ -265,62 +267,40 @@ class Database:
 
             return stats
 
-    def update_artist_confidence(
-        self,
-        artist_id: int,
-        confidence_level: str,
-        musicbrainz_id: str | None = None,
-    ):
-        """Update an artist's disambiguation confidence and optionally their MusicBrainz ID."""
-        with self.get_connection() as conn:
-            if musicbrainz_id is not None:
-                conn.execute(
-                    """
-                    UPDATE artists 
-                    SET disambiguation_confidence = ?, 
-                        confidence_last_checked = CURRENT_TIMESTAMP,
-                        musicbrainz_id = ?
-                    WHERE id = ?
-                """,
-                    (confidence_level, musicbrainz_id, artist_id),
-                )
-            else:
-                conn.execute(
-                    """
-                    UPDATE artists 
-                    SET disambiguation_confidence = ?, 
-                        confidence_last_checked = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """,
-                    (confidence_level, artist_id),
-                )
+    def _migrate_schema(self, conn):
+        """Migrate existing database schema to current version."""
+        # Get existing columns
+        cursor = conn.execute("PRAGMA table_info(artists)")
+        existing_columns = {row[1] for row in cursor.fetchall()}
 
-    def get_artists_for_confidence_check(self, limit: int) -> list[dict]:
-        """Get artists that need confidence validation."""
+        # Add mb_id_source column if missing
+        if "mb_id_source" not in existing_columns:
+            log.info("Migrating: Adding mb_id_source column")
+            conn.execute("ALTER TABLE artists ADD COLUMN mb_id_source TEXT")
+
+        # Note: We don't drop old columns (disambiguation_confidence, confidence_last_checked)
+        # as SQLite doesn't support DROP COLUMN in older versions. They'll just be unused.
+
+    def get_artist_by_name(self, name: str) -> dict | None:
+        """Get artist by name."""
         with self.get_connection() as conn:
-            cursor = conn.execute(
+            cursor = conn.execute("SELECT * FROM artists WHERE name = ?", (name,))
+            row = cursor.fetchone()
+            if row:
+                columns = [desc[0] for desc in cursor.description]
+                return dict(zip(columns, row))
+            return None
+
+    def sync_from_beets(self, artist_name: str, mb_id: str):
+        """Update or insert artist with beets MB ID."""
+        with self.get_connection() as conn:
+            conn.execute(
                 """
-                SELECT id, name, musicbrainz_id, disambiguation_confidence, confidence_last_checked
-                FROM artists 
-                WHERE ignore_releases = FALSE 
-                AND musicbrainz_id IS NOT NULL
-                ORDER BY 
-                    CASE 
-                        WHEN confidence_last_checked IS NULL THEN 0
-                        WHEN disambiguation_confidence IN ('low', 'none') THEN 1
-                        ELSE 2
-                    END,
-                    confidence_last_checked ASC
-                LIMIT ?
-            """,
-                (limit,),
+                INSERT INTO artists (name, musicbrainz_id, mb_id_source)
+                VALUES (?, ?, 'beets')
+                ON CONFLICT(name) DO UPDATE SET
+                    musicbrainz_id = excluded.musicbrainz_id,
+                    mb_id_source = 'beets'
+                """,
+                (artist_name, mb_id),
             )
-
-            columns = [
-                "id",
-                "name",
-                "musicbrainz_id",
-                "disambiguation_confidence",
-                "confidence_last_checked",
-            ]
-            return [dict(zip(columns, row)) for row in cursor.fetchall()]

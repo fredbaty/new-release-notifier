@@ -1,16 +1,38 @@
+"""Main entry point for the new release notifier."""
+
 import logging
 
 import typer
 
+from src.beets_reader import BeetsReader
 from src.config import load_config
 from src.database import Database
 from src.log_config import basic_config
 from src.musicbrainz import MusicBrainzClient
-from src.scanner import MusicScanner
 from src.notifications import NotificationClient, HealthCheck
-from src.scheduler import ArtistScheduler
 
 app = typer.Typer()
+
+
+def sync_artists_from_beets(db: Database, beets: BeetsReader) -> int:
+    """Sync all artists with MB IDs from beets to releases.db."""
+    log = logging.getLogger(__name__)
+    beets_artists = beets.get_all_artists_with_mb_ids()
+    synced = 0
+
+    for artist_name, mb_id in beets_artists.items():
+        existing = db.get_artist_by_name(artist_name)
+
+        # Skip if already synced from beets with same ID
+        if existing and existing.get("mb_id_source") == "beets":
+            if existing.get("musicbrainz_id") == mb_id:
+                continue
+
+        db.sync_from_beets(artist_name, mb_id)
+        synced += 1
+        log.debug(f"Synced artist from beets: {artist_name}")
+
+    return synced
 
 
 @app.command()
@@ -19,123 +41,60 @@ def main(
         "data/app_config.yml", "--config", help="Path to configuration file"
     ),
     verbose: bool = typer.Option(False, "--verbose", help="Enable debug logging"),
+    artist: str = typer.Option(
+        None, "--artist", help="Test with a single artist by name"
+    ),
 ):
     """Main entry point for the new release notifier."""
     basic_config(verbose)
     log = logging.getLogger(__name__)
 
     log.info("+-+-+-+-+-START-NEW_RELEASE_NOTIFIER-+-+-+-+-+")
-    # Load config
     config = load_config(config_path)
 
-    # Initialize health check
     health_check = HealthCheck(config.health_check)
     health_check.ping_start()
 
     try:
         # Initialize components
         db = Database(config.server_paths.database)
-        mb_client = MusicBrainzClient(config.musicbrainz, config.disambiguation_params)
-        scanner = MusicScanner(config.server_paths.music_library)
+        mb_client = MusicBrainzClient(config.musicbrainz)
         notifier = NotificationClient(config.ntfy)
-        scheduler = ArtistScheduler(db, config.detection_params.daily_check_limit)
 
-        # Display current statistics
-        stats = scheduler.get_schedule_stats()
-        log.info(f"Database stats: {stats}")
-
-        # Step 1: Scan for new artists in music directory
-        log.info("Scanning music directory for new artists...")
-        existing_artists = set(db.get_all_artists())
-        new_artists = scanner.find_new_artists(existing_artists)
-
-        # Add new artists to database with disambiguation
-        for artist_name in new_artists:
-            log.info(f"Adding new artist: {artist_name}")
-            # Get albums for disambiguation
-            known_albums = scanner.get_artist_albums(artist_name)
-
-            if known_albums:
-                # Use disambiguation for new artists
-                mb_id, confidence_level = mb_client.search_artist_with_disambiguation(
-                    artist_name, known_albums
+        # Initialize beets reader if enabled
+        beets = None
+        if config.beets.enabled and config.beets.database_path:
+            try:
+                beets = BeetsReader(config.beets.database_path)
+                stats = beets.get_coverage_stats()
+                log.info(
+                    f"Beets coverage: {stats['artists_with_mb_id']}/{stats['total_artists']} "
+                    f"artists ({stats['coverage_pct']}%)"
                 )
-                artist_id = db.add_artist(artist_name, mb_id, ignore_releases=False)
-                if mb_id and artist_id:
-                    scheduler.update_artist_confidence(
-                        artist_id, confidence_level, mb_id
-                    )
-            else:
-                # Fallback to basic search if no albums found
-                mb_id = mb_client.search_artist(artist_name)
-                artist_id = db.add_artist(artist_name, mb_id, ignore_releases=False)
-                if mb_id and artist_id:
-                    scheduler.update_artist_confidence(artist_id, "low", mb_id)
+            except FileNotFoundError as e:
+                log.warning(f"Beets database not found: {e}")
+                beets = None
 
-        # Step 1.5: Validate confidence for existing artists
-        log.info(
-            f"Checking confidence for up to {config.detection_params.daily_check_limit} existing artists..."
-        )
-        artists_for_confidence_check = scheduler.get_artists_for_confidence_check(
-            config.detection_params.daily_check_limit
-        )
+        # Step 1: Sync artists from beets (if available)
+        if beets:
+            log.info("Syncing artists from beets database...")
+            synced = sync_artists_from_beets(db, beets)
+            log.info(f"Synced {synced} artists from beets")
 
-        for artist in artists_for_confidence_check:
-            artist_id = artist["id"]
-            artist_name = artist["name"]
-            current_mb_id = artist["musicbrainz_id"]
-
-            log.info(
-                f"Validating confidence for: {artist_name} [current ID: {current_mb_id}]"
+        # Step 2: Get artists to check for new releases
+        if artist:
+            # Single artist mode for testing
+            artist_data = db.get_artist_by_name(artist)
+            if not artist_data:
+                log.error(f"Artist not found: {artist}")
+                health_check.ping(success=False)
+                return
+            artists_to_check = [artist_data]
+            log.info(f"Single artist mode: checking {artist}")
+        else:
+            artists_to_check = db.get_artists_for_checking(
+                config.detection_params.daily_check_limit
             )
-            known_albums = scanner.get_artist_albums(artist_name)
-            log.info("known_albums retrieved")
-            if known_albums and current_mb_id:
-                # Validate current MusicBrainz ID
-                try:
-                    confidence_score, confidence_level = (
-                        mb_client.validate_artist_confidence(
-                            current_mb_id, artist_name, known_albums
-                        )
-                    )
-                    log.info(f"confidence_score: {confidence_score}")
-                except:
-                    log.exception("Confidence check failed: ")
-                    scheduler.update_artist_confidence(artist_id, confidence_level)
-                # If confidence is too low, try to find a better match
-                if (
-                    confidence_score
-                    < config.disambiguation_params.min_confidence_threshold
-                ):
-                    log.warning(
-                        f"Low confidence for {artist_name}, attempting re-disambiguation"
-                    )
-                    new_mb_id, new_confidence_level = (
-                        mb_client.search_artist_with_disambiguation(
-                            artist_name, known_albums
-                        )
-                    )
-                    log.info(f"new mb id: {new_mb_id}")
-                    if new_mb_id != current_mb_id:
-                        log.info(
-                            f"Updated MusicBrainz ID for {artist_name}: {current_mb_id} -> {new_mb_id}"
-                        )
-                        scheduler.update_artist_confidence(
-                            artist_id, new_confidence_level, new_mb_id
-                        )
-                    else:
-                        scheduler.update_artist_confidence(artist_id, confidence_level)
-                else:
-                    scheduler.update_artist_confidence(artist_id, confidence_level)
-            else:
-                # Mark as low confidence if no albums or no MB ID
-                scheduler.update_artist_confidence(artist_id, "low")
-
-        # Step 2: Get artists to check today
-        log.info(
-            f"Getting up to {config.detection_params.daily_check_limit} artists to check today..."
-        )
-        artists_to_check = scheduler.get_artists_to_check_today()
 
         if not artists_to_check:
             log.info("No artists to check today")
@@ -145,37 +104,28 @@ def main(
         log.info(f"Checking {len(artists_to_check)} artists for new releases")
 
         # Step 3: Check each artist for new releases
-        api_calls = 0
         all_new_releases = []
 
-        for artist in artists_to_check:
-            artist_id = artist["id"]
-            artist_name = artist["name"]
-            mb_id = artist["musicbrainz_id"]
+        for artist_data in artists_to_check:
+            if not artist_data:
+                continue
+
+            artist_id = artist_data["id"]
+            artist_name = artist_data["name"]
+            mb_id = artist_data.get("musicbrainz_id")
+
+            if not mb_id:
+                log.warning(f"No MB ID for {artist_name} - skipping")
+                db.update_artist_check(artist_id)
+                continue
 
             log.info(f"Checking releases for: {artist_name}")
 
-            if not mb_id:
-                log.warning(
-                    f"No MusicBrainz ID for {artist_name}, trying to find one..."
-                )
-                mb_id = mb_client.search_artist(artist_name)
-                if mb_id:
-                    db.update_artist_musicbrainz_id(artist_name, mb_id)
-                    api_calls += 1
-                else:
-                    log.warning(f"Could not find MusicBrainz ID for {artist_name}")
-                    scheduler.update_artist_after_check(artist_id)
-                    continue
-
-            # Get recent releases
             try:
                 releases = mb_client.get_recent_releases(
                     mb_id, config.detection_params.release_window_days
                 )
-                api_calls += 1
 
-                # Add new releases to database
                 for release in releases:
                     is_new = db.add_release(
                         artist_id=artist_id,
@@ -186,56 +136,33 @@ def main(
                     )
 
                     if is_new:
-                        log.info(
-                            f"New release found: {artist_name} - {release['title']} ({release['first_release_date']})"
-                        )
-                        all_new_releases.append(
-                            {
-                                "id": None,  # Will be set by database
-                                "artist_name": artist_name,
-                                "title": release["title"],
-                                "release_date": release["first_release_date"],
-                                "release_type": release["type"],
-                            }
-                        )
+                        log.info(f"New release: {artist_name} - {release['title']}")
+                        all_new_releases.append(release)
 
-                scheduler.update_artist_after_check(artist_id)
+                db.update_artist_check(artist_id)
 
             except Exception as e:
-                log.error(f"Error checking releases for {artist_name}: {e}")
-                # Still update the check time even if there was an error
-                scheduler.update_artist_after_check(artist_id)
-                continue
+                log.error(f"Error checking {artist_name}: {e}")
+                db.update_artist_check(artist_id)
 
-        # Step 4: Send notifications for unnotified releases
-        log.info("Checking for releases to notify...")
-        unnotified_releases = db.get_unnotified_releases()
+        # Step 4: Send notifications
+        unnotified = db.get_unnotified_releases()
+        for release in unnotified:
+            notifier.send_release_notification(
+                artist_name=release["artist_name"],
+                title=release["title"],
+                release_date=release["release_date"],
+                release_type=release["release_type"],
+            )
+            db.mark_release_notified(release["id"])
 
-        if unnotified_releases:
-            log.info(f"Sending notifications for {len(unnotified_releases)} releases")
-
-            for release in unnotified_releases:
-                notifier.send_release_notification(
-                    artist_name=release["artist_name"],
-                    title=release["title"],
-                    release_date=release["release_date"],
-                    release_type=release["release_type"],
-                )
-                db.mark_release_notified(release["id"])
-        else:
-            log.info("No new releases to notify")
-
-        # Step 5: Log final statistics
         log.info(
-            f"Completed. API calls: {api_calls}, New releases found: {len(all_new_releases)}"
+            f"Done. New releases: {len(all_new_releases)}, Notifications: {len(unnotified)}"
         )
-        log.info(f"Notifications sent: {len(unnotified_releases)}")
-
-        # Send success health check
         health_check.ping(success=True)
 
     except Exception as e:
-        log.error(f"Fatal error in main execution: {e}", exc_info=True)
+        log.error(f"Fatal error: {e}", exc_info=True)
         health_check.ping(success=False)
 
     finally:
