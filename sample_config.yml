@@ -1,6 +1,6 @@
 server_paths:
   music_library: "/path/to/your/music/library"
-  database: "/path/to/your/database/releases.db"
+  releases_db: "/path/to/your/database/releases.db"
 
 beets:
   database_path: "/path/to/your/beets/musiclibrary.db"

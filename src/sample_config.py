@@ -7,8 +7,8 @@ from pydantic import BaseModel
 class ServerPaths(BaseModel):
     """Server path configurations."""
 
-    music_library_path: str = ""
-    database_path: str = ""
+    music_library: str = ""
+    releases_db: str = ""  # Path to releases.db
 
 
 class MusicBrainzConfig(BaseModel):

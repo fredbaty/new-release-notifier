@@ -11,12 +11,13 @@ from src.log_config import basic_config
 from src.musicbrainz import MusicBrainzClient
 from src.notifications import NotificationClient, HealthCheck
 
+
+log = logging.getLogger(__name__)
 app = typer.Typer()
 
 
 def sync_artists_from_beets(db: Database, beets: BeetsReader) -> int:
     """Sync all artists with MB IDs from beets to releases.db."""
-    log = logging.getLogger(__name__)
     beets_artists = beets.get_all_artists_with_mb_ids()
     synced = 0
 
@@ -57,7 +58,7 @@ def main(
 
     try:
         # Initialize components
-        db = Database(config.server_paths.database)
+        db = Database(config.server_paths.releases_db)
         mb_client = MusicBrainzClient(config.musicbrainz)
         notifier = NotificationClient(config.ntfy)
 
