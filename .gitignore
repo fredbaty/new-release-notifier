@@ -6,7 +6,7 @@ __pycache__/
 *.pyc
 
 # Config files
-config.py
+app_config.yml
 
 # Virtual environment
 .venv/

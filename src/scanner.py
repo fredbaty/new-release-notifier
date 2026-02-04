@@ -22,6 +22,7 @@ class MusicScanner:
                 for folder in os.listdir(self.music_library_path)
                 if os.path.isdir(os.path.join(self.music_library_path, folder))
                 and not folder.startswith(".")  # Skip hidden folders
+                and not folder in ["Various Artists", "Compilations"]
             ]
 
             log.info(f"Found {len(artist_folders)} artist folders in music library")
