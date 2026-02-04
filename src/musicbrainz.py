@@ -1,4 +1,4 @@
-"""MusicBrainz API client - simplified for release fetching only."""
+"""MusicBrainz API client."""
 
 import musicbrainzngs
 import time
@@ -18,7 +18,7 @@ class ConnectionTimeoutError(Exception):
 
 
 class MusicBrainzClient:
-    """Simplified client for fetching release groups only."""
+    """Main client for interacting with the MusicBrainz API, including rate limiting and retries."""
 
     def __init__(self, config: MusicBrainzConfig = MusicBrainzConfig()):
         musicbrainzngs.set_useragent(

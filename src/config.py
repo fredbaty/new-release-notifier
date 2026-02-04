@@ -7,7 +7,7 @@ from pydantic import BaseModel
 class ServerPaths(BaseModel):
     """Server path configurations."""
 
-    music_library: str = ""
+    music_library: str = ""  # Path to music library
     releases_db: str = ""  # Path to releases.db
 
 
@@ -19,7 +19,7 @@ class MusicBrainzConfig(BaseModel):
     contact: str = ""
     rate_limit_delay: float = 1.1
     max_retries: int = 3
-    intial_backoff: int = 1  # seconds
+    initial_backoff: int = 1  # seconds
     max_backoff: int = 60  # seconds
 
 
