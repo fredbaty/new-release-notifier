@@ -7,8 +7,8 @@ from pydantic import BaseModel
 class ServerPaths(BaseModel):
     """Server path configurations."""
 
-    music_library_path: str = ""
-    database_path: str = ""
+    music_library: str = ""  # Path to music library
+    releases_db: str = ""  # Path to releases.db
 
 
 class MusicBrainzConfig(BaseModel):
@@ -19,12 +19,12 @@ class MusicBrainzConfig(BaseModel):
     contact: str = ""
     rate_limit_delay: float = 1.1
     max_retries: int = 3
-    intial_backoff: int = 1  # seconds
+    initial_backoff: int = 1  # seconds
     max_backoff: int = 60  # seconds
 
 
 class DetectionParams(BaseModel):
-    """Parameters for release detection and disambiguation."""
+    """Parameters for release detection."""
 
     cache_expiry_days: int = 30
     daily_check_limit: int = 50
@@ -33,14 +33,11 @@ class DetectionParams(BaseModel):
     included_release_types: list[str] = []
 
 
-class DisambiguationParams(BaseModel):
-    """Parameters for artist disambiguation."""
+class BeetsConfig(BaseModel):
+    """Beets integration configuration."""
 
-    min_confidence_threshold: float = 0.3
-    max_candidates: int = 5
-    album_match_weight: float = 0.6
-    confidence_validation_interval_days: int = 90
-    daily_confidence_check_limit: int = 20
+    database_path: str = ""  # Path to musiclibrary.db
+    enabled: bool = True
 
 
 class NtfyConfig(BaseModel):
@@ -63,7 +60,7 @@ class AppConfig(BaseModel):
     server_paths: ServerPaths = ServerPaths()
     musicbrainz: MusicBrainzConfig = MusicBrainzConfig()
     detection_params: DetectionParams = DetectionParams()
-    disambiguation_params: DisambiguationParams = DisambiguationParams()
+    beets: BeetsConfig = BeetsConfig()
     ntfy: NtfyConfig = NtfyConfig()
     health_check: HealthCheckConfig = HealthCheckConfig()
 
