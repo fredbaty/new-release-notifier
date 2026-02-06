@@ -22,25 +22,32 @@ def search_artists(beets: BeetsReader, search_term: str) -> dict[str, str]:
 
 @app.command()
 def ignore(
-    search_term: str = typer.Argument(..., help="Artist name to search for"),
+    search_terms: list[str] = typer.Argument(..., help="Artist name(s) to search for"),
     config_path: str = typer.Option(
         "data/app_config.yml", "--config", help="Path to configuration file"
     ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ):
-    """Ignore artists matching the search term."""
+    """Ignore artists matching the search term(s)."""
     config = load_config(config_path)
     beets = BeetsReader(config.databases.beets_db)
     db = NotificationDatabase(config.databases.notifications_db)
 
-    matches = search_artists(beets, search_term)
+    # Collect matches for all search terms
+    all_matches: dict[str, str] = {}
+    for search_term in search_terms:
+        matches = search_artists(beets, search_term)
+        if not matches:
+            typer.echo(f"No artists found matching '{search_term}'")
+        else:
+            all_matches.update(matches)
 
-    if not matches:
-        typer.echo(f"No artists found matching '{search_term}'")
+    if not all_matches:
+        typer.echo("\nNo artists found for any search term.")
         raise typer.Exit(1)
 
-    typer.echo(f"\nFound {len(matches)} artist(s) matching '{search_term}':\n")
-    for name, mb_id in matches.items():
+    typer.echo(f"\nFound {len(all_matches)} artist(s) total:\n")
+    for name, mb_id in all_matches.items():
         ignored = db.is_artist_ignored(mb_id)
         status = " [already ignored]" if ignored else ""
         typer.echo(f"  - {name}{status}")
@@ -49,7 +56,7 @@ def ignore(
     # Filter to only non-ignored artists
     to_ignore = {
         name: mb_id
-        for name, mb_id in matches.items()
+        for name, mb_id in all_matches.items()
         if not db.is_artist_ignored(mb_id)
     }
 
