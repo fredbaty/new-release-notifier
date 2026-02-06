@@ -1,10 +1,6 @@
-server_paths:
-  music_library: "/path/to/your/music/library"
-  releases_db: "/path/to/your/database/releases.db"
-
-beets:
-  database_path: "/path/to/your/beets/musiclibrary.db"
-  enabled: true
+databases:
+  beets_db: "/path/to/your/beets/musiclibrary.db"
+  notifications_db: "/path/to/your/database/notifications.db"
 
 ntfy:
   topic: "music-releases"
