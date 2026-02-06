@@ -4,11 +4,11 @@ import yaml
 from pydantic import BaseModel
 
 
-class ServerPaths(BaseModel):
-    """Server path configurations."""
+class DatabasePaths(BaseModel):
+    """Database path configurations."""
 
-    music_library: str = ""  # Path to music library
-    releases_db: str = ""  # Path to releases.db
+    beets_db: str = ""  # Path to beets musiclibrary.db
+    notifications_db: str = "data/notifications.db"  # Path to notifications.db
 
 
 class MusicBrainzConfig(BaseModel):
@@ -26,18 +26,9 @@ class MusicBrainzConfig(BaseModel):
 class DetectionParams(BaseModel):
     """Parameters for release detection."""
 
-    cache_expiry_days: int = 30
-    daily_check_limit: int = 50
     release_window_days: int = 30
     excluded_release_types: list[str] = []
     included_release_types: list[str] = []
-
-
-class BeetsConfig(BaseModel):
-    """Beets integration configuration."""
-
-    database_path: str = ""  # Path to musiclibrary.db
-    enabled: bool = True
 
 
 class NtfyConfig(BaseModel):
@@ -57,10 +48,9 @@ class HealthCheckConfig(BaseModel):
 class AppConfig(BaseModel):
     """Application configuration settings."""
 
-    server_paths: ServerPaths = ServerPaths()
+    databases: DatabasePaths = DatabasePaths()
     musicbrainz: MusicBrainzConfig = MusicBrainzConfig()
     detection_params: DetectionParams = DetectionParams()
-    beets: BeetsConfig = BeetsConfig()
     ntfy: NtfyConfig = NtfyConfig()
     health_check: HealthCheckConfig = HealthCheckConfig()
 

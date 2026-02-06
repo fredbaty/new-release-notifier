@@ -4,10 +4,11 @@ Monitors your music library for new releases from artists you already own. Uses 
 
 ## How it works
 
-1. Syncs artist MusicBrainz IDs from your beets database
-2. Queries MusicBrainz for recent releases from tracked artists
-3. Stores new releases in a local SQLite database
-4. Sends push notifications for releases not yet notified
+1. Reads all artists with MusicBrainz IDs from your beets database
+2. Filters out any ignored artists
+3. Queries MusicBrainz for recent releases from each artist
+4. Sends push notifications for new releases not previously notified
+5. Records notified releases to prevent duplicates
 
 ## Requirements
 
@@ -21,12 +22,9 @@ Monitors your music library for new releases from artists you already own. Uses 
 Copy `sample_config.yml` to your config location and update paths:
 
 ```yaml
-server_paths:
-  releases_db: "/path/to/releases.db"
-
-beets:
-  database_path: "/path/to/beets/musiclibrary.db"
-  enabled: true
+databases:
+  beets_db: "/path/to/beets/musiclibrary.db"
+  notifications_db: "/path/to/notifications.db"
 
 ntfy:
   topic: "your-ntfy-topic"
@@ -53,6 +51,24 @@ python main.py --artist "Artist Name"
 
 # Enable debug logging
 python main.py --verbose
+```
+
+## Managing ignored artists
+
+Use `update_db.py` to ignore artists you don't want release notifications for:
+
+```bash
+# Ignore artists matching search terms
+python update_db.py ignore "the beatles" "rolling stones"
+
+# Unignore an artist
+python update_db.py unignore "the beatles"
+
+# List all ignored artists
+python update_db.py list-ignored
+
+# Skip confirmation prompt
+python update_db.py ignore "various artists" -y
 ```
 
 ## Installation

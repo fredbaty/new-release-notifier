@@ -47,6 +47,7 @@ class BeetsReader:
                 FROM albums
                 WHERE mb_albumartistid IS NOT NULL
                 AND mb_albumartistid != ''
+                GROUP BY mb_albumartistid
                 """
             )
             return {row["albumartist"]: row["mb_albumartistid"] for row in cursor}
