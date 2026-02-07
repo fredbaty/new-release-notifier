@@ -21,14 +21,9 @@ class MusicBrainzConfig(BaseModel):
     max_retries: int = 3
     initial_backoff: int = 1  # seconds
     max_backoff: int = 60  # seconds
-
-
-class DetectionParams(BaseModel):
-    """Parameters for release detection."""
-
-    release_window_days: int = 30
     excluded_release_types: list[str] = []
     included_release_types: list[str] = []
+    release_window_days: int = 30
 
 
 class NtfyConfig(BaseModel):
@@ -50,7 +45,6 @@ class AppConfig(BaseModel):
 
     databases: DatabasePaths = DatabasePaths()
     musicbrainz: MusicBrainzConfig = MusicBrainzConfig()
-    detection_params: DetectionParams = DetectionParams()
     ntfy: NtfyConfig = NtfyConfig()
     health_check: HealthCheckConfig = HealthCheckConfig()
 

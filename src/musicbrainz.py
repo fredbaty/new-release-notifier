@@ -130,9 +130,10 @@ class MusicBrainzClient:
                     continue
 
                 # Filter by type
-                release_type = rg.get("type", "")
+                release_type = rg.get("type", "").lower()
                 if self.excluded_release_types and release_type in self.excluded_release_types:
-                    continue
+                   log.debug(f"{rg['title']} ({release_type}) is in excluded release types. Skipping.") 
+                   continue
                 if self.included_release_types and release_type not in self.included_release_types:
                     continue
 

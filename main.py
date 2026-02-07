@@ -32,6 +32,7 @@ def main(
 
     log.info("+-+-+-+-+-START-NEW_RELEASE_NOTIFIER-+-+-+-+-+")
     config = load_config(config_path)
+    log.debug(f"Loaded config: {config}")
 
     health_check = HealthCheck(config.health_check)
     health_check.ping_start()
@@ -87,7 +88,7 @@ def main(
 
             try:
                 releases = mb_client.get_recent_releases(
-                    mb_id, config.detection_params.release_window_days
+                    mb_id, config.musicbrainz.release_window_days
                 )
 
                 for release in releases:
