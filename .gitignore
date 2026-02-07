@@ -15,3 +15,6 @@ app_config.yml
 data/*
 *.db
 *.csv
+
+# Jupyter notebooks
+*.ipynb
