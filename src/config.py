@@ -29,8 +29,14 @@ class MusicBrainzConfig(BaseModel):
 class NtfyConfig(BaseModel):
     """ntfy notification service configuration settings."""
 
-    topic: str = ""
-    token: str = ""
+    base_url: str = ""  # Server root, e.g. http://ntfy or https://ntfy.example.com
+    topic: str = ""  # Topic name only, e.g. music-releases
+    token: str = ""  # Access token, without the "Bearer " prefix
+
+    @property
+    def url(self) -> str:
+        """Full publish endpoint for the configured topic."""
+        return f"{self.base_url.rstrip('/')}/{self.topic}"
 
 
 class HealthCheckConfig(BaseModel):
