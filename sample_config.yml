@@ -1,13 +1,14 @@
-server_paths:
-  music_library: "/path/to/your/music/library"
-  database: "/path/to/your/database/releases.db"
+databases:
+  beets_db: "/path/to/your/beets/musiclibrary.db"
+  notifications_db: "/path/to/your/database/notifications.db"
 
 ntfy:
-  topic: "music-releases"
-  token: "tk_exampletoken123456"
+  base_url: "https://ntfy.sh"       # Server root, no topic and no trailing slash
+  topic: "music-releases"           # Topic name only
+  token: "tk_exampletoken123456"    # Access token, without the "Bearer " prefix
 
 health_check:
   url: "https://hc-ping.com/your-uuid-here"
-  
+
 musicbrainz:
   contact: "your-email@example.com"

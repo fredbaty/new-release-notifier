@@ -4,11 +4,11 @@ import yaml
 from pydantic import BaseModel
 
 
-class ServerPaths(BaseModel):
-    """Server path configurations."""
+class DatabasePaths(BaseModel):
+    """Database path configurations."""
 
-    music_library_path: str = ""
-    database_path: str = ""
+    beets_db: str = ""  # Path to beets musiclibrary.db
+    notifications_db: str = "data/notifications.db"  # Path to notifications.db
 
 
 class MusicBrainzConfig(BaseModel):
@@ -19,35 +19,24 @@ class MusicBrainzConfig(BaseModel):
     contact: str = ""
     rate_limit_delay: float = 1.1
     max_retries: int = 3
-    intial_backoff: int = 1  # seconds
+    initial_backoff: int = 1  # seconds
     max_backoff: int = 60  # seconds
-
-
-class DetectionParams(BaseModel):
-    """Parameters for release detection and disambiguation."""
-
-    cache_expiry_days: int = 30
-    daily_check_limit: int = 50
-    release_window_days: int = 30
     excluded_release_types: list[str] = []
     included_release_types: list[str] = []
-
-
-class DisambiguationParams(BaseModel):
-    """Parameters for artist disambiguation."""
-
-    min_confidence_threshold: float = 0.3
-    max_candidates: int = 5
-    album_match_weight: float = 0.6
-    confidence_validation_interval_days: int = 90
-    daily_confidence_check_limit: int = 20
+    release_window_days: int = 30
 
 
 class NtfyConfig(BaseModel):
     """ntfy notification service configuration settings."""
 
-    topic: str = ""
-    token: str = ""
+    base_url: str = ""  # Server root, e.g. http://ntfy or https://ntfy.example.com
+    topic: str = ""  # Topic name only, e.g. music-releases
+    token: str = ""  # Access token, without the "Bearer " prefix
+
+    @property
+    def url(self) -> str:
+        """Full publish endpoint for the configured topic."""
+        return f"{self.base_url.rstrip('/')}/{self.topic}"
 
 
 class HealthCheckConfig(BaseModel):
@@ -60,10 +49,8 @@ class HealthCheckConfig(BaseModel):
 class AppConfig(BaseModel):
     """Application configuration settings."""
 
-    server_paths: ServerPaths = ServerPaths()
+    databases: DatabasePaths = DatabasePaths()
     musicbrainz: MusicBrainzConfig = MusicBrainzConfig()
-    detection_params: DetectionParams = DetectionParams()
-    disambiguation_params: DisambiguationParams = DisambiguationParams()
     ntfy: NtfyConfig = NtfyConfig()
     health_check: HealthCheckConfig = HealthCheckConfig()
 
