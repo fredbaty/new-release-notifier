@@ -19,7 +19,10 @@ app = typer.Typer()
 @app.command()
 def main(
     config_path: str = typer.Option(
-        "data/app_config.yml", "--config", help="Path to configuration file"
+        "data/app_config.yml",
+        "--config",
+        envvar="NRN_CONFIG",
+        help="Path to configuration file",
     ),
     verbose: bool = typer.Option(False, "--verbose", help="Enable debug logging"),
     artist: str = typer.Option(

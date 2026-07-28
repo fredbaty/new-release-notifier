@@ -15,4 +15,7 @@ COPY main.py update_db.py ./
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Config is mounted in rather than baked, so the image holds no secrets.
-CMD ["python", "main.py", "--config", "/config/config.yml"]
+# Set here so update_db.py and main.py both find it without --config.
+ENV NRN_CONFIG=/config/config.yml
+
+CMD ["python", "main.py"]

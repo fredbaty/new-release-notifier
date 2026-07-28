@@ -24,7 +24,10 @@ def search_artists(beets: BeetsReader, search_term: str) -> dict[str, str]:
 def ignore(
     search_terms: list[str] = typer.Argument(..., help="Artist name(s) to search for"),
     config_path: str = typer.Option(
-        "data/app_config.yml", "--config", help="Path to configuration file"
+        "data/app_config.yml",
+        "--config",
+        envvar="NRN_CONFIG",
+        help="Path to configuration file",
     ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ):
@@ -82,7 +85,10 @@ def ignore(
 def unignore(
     search_term: str = typer.Argument(..., help="Artist name to search for"),
     config_path: str = typer.Option(
-        "data/app_config.yml", "--config", help="Path to configuration file"
+        "data/app_config.yml",
+        "--config",
+        envvar="NRN_CONFIG",
+        help="Path to configuration file",
     ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ):
@@ -130,7 +136,10 @@ def unignore(
 @app.command()
 def list_ignored(
     config_path: str = typer.Option(
-        "data/app_config.yml", "--config", help="Path to configuration file"
+        "data/app_config.yml",
+        "--config",
+        envvar="NRN_CONFIG",
+        help="Path to configuration file",
     ),
 ):
     """List all ignored artists."""
