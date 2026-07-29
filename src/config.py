@@ -1,7 +1,7 @@
 """Configuration settings for the new release notifier."""
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
 
 class DatabasePaths(BaseModel):
@@ -29,8 +29,15 @@ class MusicBrainzConfig(BaseModel):
 class NtfyConfig(BaseModel):
     """ntfy notification service configuration settings."""
 
-    topic: str = ""
-    token: str = ""
+    base_url: str = ""  # Server root, e.g. http://ntfy or https://ntfy.example.com
+    topic: str = ""  # Topic name only, e.g. music-releases
+    # SecretStr so the token renders as ********** wherever the config is logged.
+    token: SecretStr = SecretStr("")  # Access token, without the "Bearer " prefix
+
+    @property
+    def url(self) -> str:
+        """Full publish endpoint for the configured topic."""
+        return f"{self.base_url.rstrip('/')}/{self.topic}"
 
 
 class HealthCheckConfig(BaseModel):

@@ -10,8 +10,8 @@ log = logging.getLogger(__name__)
 
 class NotificationClient:
     def __init__(self, config: NtfyConfig = NtfyConfig()):
-        self.topic = config.topic
-        self.token = config.token
+        self.url = config.url
+        self.token = config.token.get_secret_value()
 
     def send_release_notification(
         self,
@@ -30,14 +30,15 @@ class NotificationClient:
 
     def send_notification(self, message: str):
         """Send a notification via ntfy."""
+        headers = {"Tags": "tada"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+
         try:
             response = requests.post(
-                self.topic,
+                self.url,
                 data=message,
-                headers={
-                    "Authorization": self.token,
-                    "Tags": "tada",
-                },
+                headers=headers,
                 timeout=10,
             )
 

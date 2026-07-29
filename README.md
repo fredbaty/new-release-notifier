@@ -27,8 +27,9 @@ databases:
   notifications_db: "/path/to/notifications.db"
 
 ntfy:
-  topic: "your-ntfy-topic"
-  token: "tk_yourtoken"
+  base_url: "https://ntfy.sh"   # Server root, no topic, no trailing slash
+  topic: "your-ntfy-topic"      # Topic name only
+  token: "tk_yourtoken"         # Sent as "Bearer <token>"; omit the prefix here
 
 health_check:
   url: "https://hc-ping.com/your-uuid"
@@ -75,4 +76,26 @@ python update_db.py ignore "various artists" -y
 
 ```bash
 uv sync
+```
+
+## Docker
+
+The image mounts its config rather than baking it in, so it holds no secrets:
+
+```bash
+docker build -t new-release-notifier .
+
+docker run --rm \
+  --user 1001:1001 \
+  -v /path/to/musiclibrary.db:/music/musiclibrary.db:ro \
+  -v /path/to/data:/data \
+  -v /path/to/config.yml:/config/config.yml:ro \
+  new-release-notifier
+```
+
+The beets database is opened read-only, so a `:ro` mount is safe. Other commands
+run by overriding the default, e.g.:
+
+```bash
+docker run --rm ... new-release-notifier python update_db.py list-ignored
 ```
