@@ -18,4 +18,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Set here so update_db.py and main.py both find it without --config.
 ENV NRN_CONFIG=/config/config.yml
 
-CMD ["python", "main.py"]
+# ENTRYPOINT so `compose run <service> --verbose` appends flags rather than
+# replacing the command. Running update_db.py needs --entrypoint python.
+ENTRYPOINT ["python", "main.py"]
+CMD []

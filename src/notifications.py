@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 class NotificationClient:
     def __init__(self, config: NtfyConfig = NtfyConfig()):
         self.url = config.url
-        self.token = config.token
+        self.token = config.token.get_secret_value()
 
     def send_release_notification(
         self,
