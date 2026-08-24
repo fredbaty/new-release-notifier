@@ -1,6 +1,7 @@
 """Main entry point for the new release notifier."""
 
 import logging
+from datetime import datetime, timedelta
 
 import typer
 
@@ -85,14 +86,35 @@ def main(
         log.info(f"Checking {len(artists_to_check)} artists for new releases")
 
         # Check each artist for new releases
+        full_scan_cutoff = datetime.now() - timedelta(
+            days=config.musicbrainz.full_scan_days
+        )
         new_releases = []
+        skipped_pages = 0
+
         for artist_name, mb_id in artists_to_check.items():
             log.debug(f"Checking releases for: {artist_name}")
 
+            # A stale count is worse than no count, so fall back to a full scan
+            # periodically: an addition and a merge between runs cancel out.
+            state = db.get_artist_scan_state(mb_id)
+            known_count = (
+                state[0] if state and state[1] > full_scan_cutoff else None
+            )
+
             try:
-                releases = mb_client.get_recent_releases(
-                    mb_id, config.musicbrainz.release_window_days
+                releases, total = mb_client.get_recent_releases(
+                    mb_id,
+                    config.musicbrainz.release_window_days,
+                    known_count=known_count,
                 )
+
+                if total is not None:
+                    db.set_artist_scan_state(
+                        mb_id, total, full_scan=known_count is None
+                    )
+                    if known_count is not None and total == known_count:
+                        skipped_pages += 1
 
                 for release in releases:
                     if not db.is_release_notified(release["id"]):
@@ -101,6 +123,10 @@ def main(
 
             except Exception as e:
                 log.error(f"Error checking {artist_name}: {e}")
+
+        log.info(
+            f"{skipped_pages}/{len(artists_to_check)} artists unchanged since last scan"
+        )
 
         # Send notifications and record releases
         notifications_sent = 0

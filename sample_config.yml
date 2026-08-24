@@ -12,3 +12,10 @@ health_check:
 
 musicbrainz:
   contact: "your-email@example.com"
+  # Matched against a lowercased MusicBrainz type. The two lists are separate
+  # because that is how MusicBrainz models them: "single" is only ever a primary
+  # type, "compilation" only ever a secondary one.
+  excluded_primary_types:
+    - "single"
+  excluded_secondary_types:
+    - "compilation"

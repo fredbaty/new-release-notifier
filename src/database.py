@@ -2,6 +2,7 @@
 
 import sqlite3
 import logging
+from datetime import datetime
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -52,6 +53,16 @@ class NotificationDatabase:
                     release_date TEXT,
                     release_type TEXT,
                     notified_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS artist_scan_state (
+                    mb_albumartistid TEXT PRIMARY KEY,
+                    release_group_count INTEGER NOT NULL,
+                    last_full_scan DATETIME NOT NULL
                 )
                 """
             )
@@ -125,6 +136,51 @@ class NotificationDatabase:
             stats["notified_releases"] = cursor.fetchone()[0]
 
             return stats
+
+    def get_artist_scan_state(self, mb_id: str) -> tuple[int, datetime] | None:
+        """Get (release_group_count, last_full_scan) for an artist, if recorded."""
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                SELECT release_group_count, last_full_scan
+                FROM artist_scan_state
+                WHERE mb_albumartistid = ?
+                """,
+                (mb_id,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            return row["release_group_count"], datetime.fromisoformat(
+                row["last_full_scan"]
+            )
+
+    def set_artist_scan_state(
+        self, mb_id: str, release_group_count: int, full_scan: bool
+    ):
+        """Record an artist's release-group count, advancing last_full_scan on a full scan."""
+        with self._get_connection() as conn:
+            if full_scan:
+                conn.execute(
+                    """
+                    INSERT INTO artist_scan_state
+                    (mb_albumartistid, release_group_count, last_full_scan)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(mb_albumartistid) DO UPDATE SET
+                        release_group_count = excluded.release_group_count,
+                        last_full_scan = excluded.last_full_scan
+                    """,
+                    (mb_id, release_group_count, datetime.now().isoformat()),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE artist_scan_state
+                    SET release_group_count = ?
+                    WHERE mb_albumartistid = ?
+                    """,
+                    (release_group_count, mb_id),
+                )
 
     def get_ignored_artists(self) -> list[str]:
         """Get all ignored artist MB IDs."""

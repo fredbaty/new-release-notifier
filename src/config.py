@@ -21,9 +21,13 @@ class MusicBrainzConfig(BaseModel):
     max_retries: int = 3
     initial_backoff: int = 1  # seconds
     max_backoff: int = 60  # seconds
-    excluded_release_types: list[str] = []
-    included_release_types: list[str] = []
+    connection_timeout: int = 300  # seconds
+    # MusicBrainz never uses the same name for both, so each list has its own field:
+    # "single" is a primary type, "compilation" a secondary one.
+    excluded_primary_types: list[str] = []
+    excluded_secondary_types: list[str] = []
     release_window_days: int = 30
+    full_scan_days: int = 7
 
 
 class NtfyConfig(BaseModel):
