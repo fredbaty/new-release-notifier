@@ -8,4 +8,4 @@ def basic_config(verbose: bool = False):
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    logging.getLogger("musicbrainzngs").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
